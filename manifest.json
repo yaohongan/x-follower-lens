@@ -1,36 +1,36 @@
 {
   "manifest_version": 3,
   "name": "粉丝透镜 Follower Lens",
-  "version": "0.1.3",
-  "description": "在 X 的信息流和关注列表里显示粉丝数,并给出粉丝/关注比、账号年龄、互动率等质量标签。",
-  "host_permissions": [
-    "https://x.com/*",
-    "https://twitter.com/*"
-  ],
+  "version": "0.2.0",
+  "description": "在 X 的信息流和关注列表里显示粉丝数,并给出粉丝/关注比、账号年龄、互动率、互关等质量标签。",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["https://x.com/*", "https://twitter.com/*"],
+  "action": {
+    "default_title": "粉丝透镜",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
   "content_scripts": [
     {
-      "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*"
-      ],
-      "js": [
-        "inject.js"
-      ],
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["inject.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*"
-      ],
-      "js": [
-        "parse.js",
-        "content.js"
-      ],
-      "css": [
-        "content.css"
-      ],
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["parse.js", "content.js"],
+      "css": ["content.css"],
       "run_at": "document_start"
     }
   ]

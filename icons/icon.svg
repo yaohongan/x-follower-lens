@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1D9BF0"/>
+      <stop offset="1" stop-color="#6F4BFF"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#bg)"/>
+  <rect width="128" height="64" rx="30" fill="url(#shine)"/>
+  <!-- 镜片 -->
+  <circle cx="55" cy="54" r="33" fill="#fff" fill-opacity=".16" stroke="#fff" stroke-width="10"/>
+  <!-- 镜片里的三根上升柱:粉丝增长 -->
+  <rect x="38" y="57" width="10" height="17" rx="3" fill="#fff"/>
+  <rect x="52" y="45" width="10" height="29" rx="3" fill="#fff"/>
+  <rect x="66" y="33" width="10" height="41" rx="3" fill="#FFD166"/>
+  <!-- 手柄 -->
+  <line x1="80" y1="79" x2="108" y2="107" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+</svg>

@@ -1,19 +1,36 @@
 .fl-badge {
   display: inline-flex;
   align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   gap: 4px;
   margin-left: 6px;
   font-size: 12px;
   line-height: 1;
   vertical-align: middle;
+  cursor: default;
 }
 .fl-main {
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: 999px;
   background: rgba(29, 155, 240, 0.12);
   color: rgb(29, 155, 240);
-  font-weight: 600;
-  cursor: help;
+  font-weight: 700;
+}
+.fl-main.t0 { background: rgba(113, 118, 123, 0.16); color: rgb(113, 118, 123); }
+.fl-main.t1 { background: rgba(29, 155, 240, 0.13);  color: rgb(29, 155, 240); }
+.fl-main.t2 { background: rgba(0, 186, 124, 0.15);   color: rgb(0, 160, 108); }
+.fl-main.t3 { background: rgba(255, 159, 10, 0.18);  color: rgb(214, 126, 0); }
+.fl-main.t4 {
+  background: linear-gradient(135deg, rgba(249, 24, 128, 0.18), rgba(255, 159, 10, 0.18));
+  color: rgb(226, 22, 116);
+}
+.fl-ratio {
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(113, 118, 123, 0.35);
+  color: rgb(113, 118, 123);
+  font-variant-numeric: tabular-nums;
 }
 .fl-tag {
   padding: 2px 5px;
@@ -21,6 +38,40 @@
   background: rgba(113, 118, 123, 0.18);
   color: rgb(113, 118, 123);
 }
-.fl-tag.hi { background: rgba(0, 186, 124, 0.15); color: rgb(0, 150, 100); }
+.fl-tag.hi   { background: rgba(0, 186, 124, 0.15);  color: rgb(0, 150, 100); }
 .fl-tag.warn { background: rgba(249, 24, 128, 0.12); color: rgb(220, 30, 110); }
-#fl-hud{position:fixed;left:8px;bottom:8px;z-index:99999;padding:3px 8px;font:12px/1.4 sans-serif;color:#fff;background:rgba(0,0,0,.65);border-radius:6px;pointer-events:none}
+.fl-tag.rel  { background: rgba(120, 86, 255, 0.15); color: rgb(120, 86, 255); }
+
+/* 关注/粉丝列表里被淡化的账号:鼠标移上去恢复 */
+[data-testid="UserCell"].fl-dim { opacity: 0.45; transition: opacity 0.15s; }
+[data-testid="UserCell"].fl-dim:hover { opacity: 1; }
+
+/* 悬停详情卡 */
+#fl-tip {
+  position: fixed;
+  z-index: 2147483647;
+  display: none;
+  min-width: 190px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font: 13px/1.5 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  pointer-events: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+  background: #fff;
+  color: #0f1419;
+  border: 1px solid rgba(113, 118, 123, 0.3);
+}
+#fl-tip[data-theme="dark"] { background: #16181c; color: #e7e9ea; border-color: rgba(113, 118, 123, 0.5); }
+#fl-tip .fl-tip-h { font-weight: 700; margin-bottom: 4px; }
+#fl-tip .fl-tip-r { display: flex; justify-content: space-between; gap: 16px; }
+#fl-tip .fl-tip-r span { color: rgb(113, 118, 123); }
+#fl-tip .fl-tip-r b { font-weight: 600; text-align: right; }
+#fl-tip .dim { color: rgb(113, 118, 123); font-weight: 400; }
+#fl-tip .up { color: rgb(0, 160, 108); }
+#fl-tip .down { color: rgb(226, 22, 116); }
+
+#fl-hud {
+  position: fixed; left: 8px; bottom: 8px; z-index: 99999;
+  padding: 3px 8px; font: 12px/1.4 sans-serif; color: #fff;
+  background: rgba(0, 0, 0, 0.65); border-radius: 6px; pointer-events: none;
+}

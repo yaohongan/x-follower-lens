@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>粉丝透镜</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="" width="36" height="36">
+    <div class="title">
+      <h1>粉丝透镜</h1>
+      <p>Follower Lens · <span id="ver"></span></p>
+    </div>
+    <label class="sw big"><input type="checkbox" data-key="enabled"><i></i></label>
+  </header>
+
+  <main id="panel">
+    <section>
+      <h2>显示</h2>
+      <label class="row"><span>粉丝量分级配色<small>按粉丝数给徽标上不同颜色</small></span><span class="sw"><input type="checkbox" data-key="tierColors"><i></i></span></label>
+      <label class="row"><span>显示粉丝/关注比<small>徽标里多一个"比 12"</small></span><span class="sw"><input type="checkbox" data-key="showRatio"><i></i></span></label>
+      <label class="row"><span>悬停详情卡<small>鼠标移到徽标上看详细数据</small></span><span class="sw"><input type="checkbox" data-key="hoverCard"><i></i></span></label>
+    </section>
+
+    <section>
+      <h2>标签</h2>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" data-tag="relation"><span>互关 / 关注了你</span></label>
+        <label class="chip"><input type="checkbox" data-tag="bigV"><span>大V</span></label>
+        <label class="chip"><input type="checkbox" data-tag="engaged"><span>高互动</span></label>
+        <label class="chip"><input type="checkbox" data-tag="lowActive"><span>低活跃</span></label>
+        <label class="chip"><input type="checkbox" data-tag="farm"><span>疑似互粉号</span></label>
+        <label class="chip"><input type="checkbox" data-tag="newAcct"><span>新号</span></label>
+        <label class="chip"><input type="checkbox" data-tag="oldAcct"><span>老号</span></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>列表</h2>
+      <label class="row"><span>淡化疑似互粉号和低活跃号<small>仅在关注 / 粉丝列表,鼠标移上去恢复</small></span><span class="sw"><input type="checkbox" data-key="dimLowQuality"><i></i></span></label>
+    </section>
+
+    <section>
+      <h2>数据</h2>
+      <label class="row"><span>本地记录粉丝数变化<small>只存在你的浏览器里,不上传</small></span><span class="sw"><input type="checkbox" data-key="trackHistory"><i></i></span></label>
+      <div class="row">
+        <span>已记录 <b id="histCount">0</b> 个账号</span>
+        <button id="clearHist" type="button">清除记录</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>高级</h2>
+      <label class="row"><span>显示调试条<small>页面左下角,排查问题用</small></span><span class="sw"><input type="checkbox" data-key="debug"><i></i></span></label>
+    </section>
+  </main>
+
+  <footer>
+    <a href="https://github.com/yaohongan/x-follower-lens" target="_blank" rel="noreferrer">GitHub</a>
+    <span>修改即时生效</span>
+  </footer>
+  <script src="popup.js"></script>
+</body>
+</html>
