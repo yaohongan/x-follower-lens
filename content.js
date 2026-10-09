@@ -118,6 +118,13 @@
     const wrap = document.createElement("span");
     wrap.className = "fl-badge";
     wrap.dataset.flHandle = handle;
+    // 徽标在名字链接里时,鼠标移上来不应触发 X 自己的资料悬浮卡:
+    // 不让这些事件冒泡给 X(它靠这几个事件判断悬停),我们自己的详情卡直接监听徽标。
+    for (const ev of ["mouseover", "mouseout", "pointerover", "pointerout", "mousemove", "pointermove"]) {
+      wrap.addEventListener(ev, (e) => e.stopPropagation());
+    }
+    wrap.addEventListener("mouseenter", () => showTip(wrap));
+    wrap.addEventListener("mouseleave", hideTip);
 
     const main = document.createElement("span");
     main.className = "fl-main" + (settings.tierColors ? " t" + P.tier(u.followers) : "");
@@ -329,14 +336,6 @@
   }
   function hideTip() { if (tip) tip.style.display = "none"; }
 
-  document.addEventListener("mouseover", (e) => {
-    const b = e.target.closest && e.target.closest(".fl-badge");
-    if (b) showTip(b);
-  });
-  document.addEventListener("mouseout", (e) => {
-    const b = e.target.closest && e.target.closest(".fl-badge");
-    if (b && !(e.relatedTarget && b.contains(e.relatedTarget))) hideTip();
-  });
   window.addEventListener("scroll", hideTip, { passive: true });
 
   init();
