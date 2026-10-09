@@ -1,0 +1,26 @@
+.fl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.fl-main {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(29, 155, 240, 0.12);
+  color: rgb(29, 155, 240);
+  font-weight: 600;
+  cursor: help;
+}
+.fl-tag {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(113, 118, 123, 0.18);
+  color: rgb(113, 118, 123);
+}
+.fl-tag.hi { background: rgba(0, 186, 124, 0.15); color: rgb(0, 150, 100); }
+.fl-tag.warn { background: rgba(249, 24, 128, 0.12); color: rgb(220, 30, 110); }
+#fl-hud{position:fixed;left:8px;bottom:8px;z-index:99999;padding:3px 8px;font:12px/1.4 sans-serif;color:#fff;background:rgba(0,0,0,.65);border-radius:6px;pointer-events:none}
