@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "粉丝透镜 Follower Lens",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "在 X 的信息流和关注列表里显示粉丝数,并给出粉丝/关注比、账号年龄、互动率、互关等质量标签。",
   "icons": {
     "16": "icons/icon16.png",

@@ -10,6 +10,8 @@
     hoverCard: true,      // 悬停详情卡
     trackHistory: true,   // 本地记录粉丝数变化
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
+    layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
+    maxTags: 3,           // 徽标里最多显示几个标签(0 = 只显示粉丝数)
     debug: false,         // 左下角调试条
     tags: {
       relation: true,     // 互关 / 关注了你

@@ -132,7 +132,7 @@
     }
 
     if (!compact) {
-      for (const t of list.slice(0, 3)) {
+      for (const t of list.slice(0, settings.maxTags)) {
         const el = document.createElement("span");
         el.className = "fl-tag " + t.cls;
         el.textContent = t.text;
@@ -147,22 +147,77 @@
     return [u.followers, s ? s.views : 0, u.followedBy, u.iFollow, settingsVer, compact ? 1 : 0].join("|");
   }
 
-  function decorate(container, anchor, isCell) {
-    const handle = handleOf(container);
+  // ----- 推文头部:行内 / 单独一行 / 自动 -----
+  const placed = new WeakMap();   // User-Name 元素 -> { badge, line, sig }
+
+  // 头部整行(名字区 + 其它插件的小标 + 菜单)。结构不符就返回 null,调用方退回行内。
+  function headerRow(un) {
+    const row = un.parentElement && un.parentElement.parentElement && un.parentElement.parentElement.parentElement;
+    const host = row && row.parentElement;
+    if (!row || !host) return null;
+    const rs = getComputedStyle(row), hs = getComputedStyle(host);
+    return rs.display === "flex" && rs.flexDirection === "row" && hs.flexDirection === "column" ? row : null;
+  }
+
+  // 名字或 @ID 因为空间不够被省略(...)了吗
+  function crowded(un, badge) {
+    for (const n of un.querySelectorAll("*")) {
+      if (n === badge || badge.contains(n)) continue;
+      if (n.clientWidth > 0 && n.scrollWidth > n.clientWidth + 1) return true;
+    }
+    return false;
+  }
+
+  function placeBelow(un, badge) {
+    const row = headerRow(un);
+    if (!row) return null;
+    const line = document.createElement("div");
+    line.className = "fl-line";
+    line.append(badge);
+    row.after(line);
+    return line;
+  }
+
+  function decorateTweet(un) {
+    const handle = handleOf(un);
     if (!handle || !users.has(handle)) return;
-    const compact = !!container.closest('[data-testid="sidebarColumn"]');
+    const sig = sigOf(handle, false);
+    const rec = placed.get(un);
+    if (rec && rec.badge.isConnected && rec.sig === sig) return;
+    if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); }
+
+    const built = buildBadge(handle, false);
+    if (!built) return;
+    let line = null;
+    if (settings.layout === "below") {
+      line = placeBelow(un, built.wrap);
+      if (!line) un.append(built.wrap);
+    } else {
+      un.append(built.wrap);
+      // 自动:放进去之后名字被挤省略了,就挪到下一行(只判断这一次,不来回挪)
+      if (settings.layout === "auto" && crowded(un, built.wrap)) line = placeBelow(un, built.wrap);
+    }
+    placed.set(un, { badge: built.wrap, line, sig });
+  }
+
+  // ----- 关注 / 粉丝列表里的用户行 -----
+  function decorateCell(cell, anchor) {
+    const handle = handleOf(cell);
+    if (!handle || !users.has(handle)) return;
+    const compact = !!cell.closest('[data-testid="sidebarColumn"]');
     const sig = sigOf(handle, compact);
-    const old = container.querySelector(".fl-badge");
+    const old = cell.querySelector(".fl-badge");
     if (old && old.dataset.flHandle === handle && old.dataset.flSig === sig) return;
     if (old) old.remove();
     const built = buildBadge(handle, compact);
     if (!built) return;
     built.wrap.dataset.flSig = sig;
     if (anchor) anchor.append(built.wrap);
-    if (isCell) container.classList.toggle("fl-dim", settings.dimLowQuality && P.shouldDim(built.list));
+    cell.classList.toggle("fl-dim", settings.dimLowQuality && P.shouldDim(built.list));
   }
 
   function cleanup() {
+    document.querySelectorAll(".fl-line").forEach((l) => l.remove());
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
   }
@@ -170,12 +225,10 @@
   function render() {
     if (!settings) return;
     if (!settings.enabled) { cleanup(); return; }
-    document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach((el) => {
-      decorate(el, el, false);
-    });
+    document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach(decorateTweet);
     document.querySelectorAll('[data-testid="UserCell"]').forEach((cell) => {
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
-      decorate(cell, nameBlock && nameBlock.parentElement, true);
+      decorateCell(cell, nameBlock && nameBlock.parentElement);
     });
     updateHud();
   }

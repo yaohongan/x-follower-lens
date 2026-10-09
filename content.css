@@ -4,12 +4,16 @@
   flex-wrap: nowrap;
   white-space: nowrap;
   gap: 4px;
+  flex: none;            /* 不被头部那一行压缩,宁可让名字省略 */
   margin-left: 6px;
   font-size: 12px;
   line-height: 1;
   vertical-align: middle;
   cursor: default;
 }
+.fl-badge > * { flex: none; white-space: nowrap; }
+.fl-line { margin: 1px 0 3px; }
+.fl-line .fl-badge { margin-left: 0; }
 .fl-main {
   padding: 2px 7px;
   border-radius: 999px;

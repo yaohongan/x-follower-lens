@@ -24,6 +24,27 @@
     </section>
 
     <section>
+      <h2>布局</h2>
+      <div class="row nohover">
+        <span>徽标位置<small>自动:放得下就放在名字后面,放不下换到下一行</small></span>
+      </div>
+      <div class="seg">
+        <label><input type="radio" name="layout" data-key="layout" value="auto"><span>自动</span></label>
+        <label><input type="radio" name="layout" data-key="layout" value="inline"><span>行内</span></label>
+        <label><input type="radio" name="layout" data-key="layout" value="below"><span>单独一行</span></label>
+      </div>
+      <div class="row nohover">
+        <span>最多显示几个标签<small>选"0"就只显示粉丝数,最简洁</small></span>
+      </div>
+      <div class="seg">
+        <label><input type="radio" name="maxTags" data-key="maxTags" value="0"><span>0</span></label>
+        <label><input type="radio" name="maxTags" data-key="maxTags" value="1"><span>1</span></label>
+        <label><input type="radio" name="maxTags" data-key="maxTags" value="2"><span>2</span></label>
+        <label><input type="radio" name="maxTags" data-key="maxTags" value="3"><span>3</span></label>
+      </div>
+    </section>
+
+    <section>
       <h2>标签</h2>
       <div class="chips">
         <label class="chip"><input type="checkbox" data-tag="relation"><span>互关 / 关注了你</span></label>
