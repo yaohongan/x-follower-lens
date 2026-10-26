@@ -192,6 +192,7 @@
 
   // ----- 推文头部:行内 / 单独一行 / 自动 -----
   const placed = new WeakMap();   // User-Name 元素 -> { badge, line, sig }
+  const flowTier = new WeakMap(); // article -> 这条推文的流速档位(-1 = 没有),给头像装饰用
 
   // 头部整行(名字区 + 其它插件的小标 + 菜单)。结构不符就返回 null,调用方退回行内。
   function headerRow(un) {
@@ -341,6 +342,7 @@
     const info = id && tweetInfo.get(id);
     const author = info && users.get(info.author);
     const flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
+    flowTier.set(article, flow ? flow.tier : -1);
     if (!flow) { if (old) old.remove(); return; }
 
     // 位置:corner = 固定在标题行右上角,和常见插件的流速标同一个位置(盖在它上面,不改它);
@@ -406,7 +408,41 @@
     }
   }
 
+  // ----- 趣味模式:按这条推文的流速,给作者头像外面叠一圈光环(🚲 以下不加,免得太吵)-----
+  function isRound(container) {
+    // 个人头像是圆的,企业号头像是方的:往上找带大圆角的祖先
+    for (let e = container.querySelector("img"); e && e !== container.parentElement; e = e.parentElement) {
+      const r = getComputedStyle(e).borderRadius;
+      if (r === "9999px" || r.includes("%")) return true;
+    }
+    return false;
+  }
+
+  function decorateAvatar(article) {
+    const container = article.querySelector('[data-testid^="UserAvatar-Container-"]');
+    if (!container) return;
+    const tier = flowTier.get(article);
+    const want = settings.avatarFx && tier >= 2 ? tier : -1;
+    const ring = container.querySelector(":scope > .fl-ring");
+    if (want < 0) { if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); } return; }
+    const round = isRound(container);
+    const sig = `${want}|${round ? "r" : "s"}`;
+    if (ring && ring.dataset.flSig === sig) return;
+    if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); }
+    const el = document.createElement("span");
+    el.className = `fl-ring r${want}` + (round ? " round" : " square");
+    el.dataset.flSig = sig;
+    container.append(el);
+    if (want >= 3) {
+      const b = document.createElement("span");
+      b.className = "fl-ring-badge";
+      b.textContent = want === 4 ? "⚡" : "🚀";
+      container.append(b);
+    }
+  }
+
   function cleanup() {
+    document.querySelectorAll(".fl-ring, .fl-ring-badge").forEach((r) => r.remove());
     document.querySelectorAll(".fl-flow").forEach((f) => f.remove());
     document.querySelectorAll(".fl-line").forEach((l) => l.remove());
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
@@ -419,6 +455,7 @@
     // 先放流速标,再放粉丝徽标:头部放不下时,让粉丝徽标换行,流速标保留文字
     document.querySelectorAll('article[data-testid="tweet"]').forEach(decorateFlow);
     document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach(decorateTweet);
+    document.querySelectorAll('article[data-testid="tweet"]').forEach(decorateAvatar);
     document.querySelectorAll('[data-testid="UserCell"]').forEach((cell) => {
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
       decorateCell(cell, nameBlock && nameBlock.parentElement);

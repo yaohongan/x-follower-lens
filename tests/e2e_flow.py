@@ -55,7 +55,7 @@ with sync_playwright() as p:
     rm=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[0].querySelector('.fl-flow');return {a:getComputedStyle(c).animationName,e:getComputedStyle(c.querySelector('.fl-emo')).animationName,after:getComputedStyle(c,'::after').display}})()")
     check("系统开了\"减少动态效果\":动画全部关闭,保留配色",rm["a"]=="none" and rm["e"]=="none" and rm["after"]=="none",rm)
     pg.emulate_media(reduced_motion="no-preference")
-    pg.screenshot(path="shot_fx.png")
+    pg.screenshot(path=os.path.join(tempfile.gettempdir(),"shot_fx.png"))
     # ---- 切到 自动 ----
     pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
     check("弹窗:位置默认 角落",pop0.evaluate("document.querySelector('input[data-key=flowPos]:checked').value")=="corner")
@@ -79,7 +79,7 @@ with sync_playwright() as p:
     check("固定放头部时:流速标自动让到浮层左边,不重叠",not ov["overlap"] and ov["chipRight"]<=ov["ovLeft"] and ov["wouldOverlap"],ov)
     check("提示里有每小时浏览量",s[3] and "次浏览/小时" in s[3]["title"])
     check("头部挤的时候逐级缩短(最终只留图标)",s[6] and "火箭" not in s[6]["t"],s[6] and s[6]["t"])
-    pg.screenshot(path="shot_flow_header.png")
+    pg.screenshot(path=os.path.join(tempfile.gettempdir(),"shot_flow_header.png"))
     pop=pop0
     check("弹窗:位置选项含 角落/自动/头部/底部",pop.evaluate("[...document.querySelectorAll('input[data-key=flowPos]')].map(i=>i.value).join()")=="corner,auto,header,bar")
     pop.click('input[data-key=flowPos][value=bar] + span'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
