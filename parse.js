@@ -12,7 +12,7 @@
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
-    flowPos: "header",    // 流速位置:header 头部右侧 / bar 底部操作栏
+    flowPos: "auto",      // 流速位置:auto 自动(头部右侧被别的插件占了就放底部)/ header 头部右侧 / bar 底部操作栏
     layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
     maxTags: 3,           // 徽标里最多显示几个标签(0 = 只显示粉丝数)
     debug: false,         // 左下角调试条
@@ -201,11 +201,30 @@
     return { rate, ageH, tier: idx, ...FLOW_TIERS[idx] };
   }
 
+  // 趋势:用同一条推文的几次观察(浏览量 + 时间),算"最近这一阵"的速度,和发布以来的平均速度比。
+  // obs: [{ views, at }, ...] 按时间从早到晚;avgRate:发布以来平均每小时浏览量
+  // 基准取"距最新一次观察至少 minGapMs 之前"里最近的一次,间隔太短算出来是噪音。
+  function trendOf(obs, avgRate, minGapMs) {
+    if (!obs || obs.length < 2 || !(avgRate > 0)) return null;
+    const gapMin = minGapMs === undefined ? 120000 : minGapMs;
+    const last = obs[obs.length - 1];
+    let base = null;
+    for (let i = obs.length - 2; i >= 0; i--) {
+      if (last.at - obs[i].at >= gapMin) { base = obs[i]; break; }
+    }
+    if (!base) return null;
+    const dv = last.views - base.views;
+    if (dv < 10) return null;                                   // 增量太小,不下结论
+    const recent = dv / ((last.at - base.at) / 3600e3);
+    const ratio = recent / avgRate;
+    return { recent, ratio, dir: ratio >= 1.3 ? "up" : ratio <= 0.5 ? "down" : "flat" };
+  }
+
   function fmtRate(r) {
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { FLOW_TIERS, flowOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom };
+  const api = { FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

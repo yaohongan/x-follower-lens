@@ -91,7 +91,14 @@
       recordHistory(u, now);
     }
     for (const t of tweets) {
-      tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author });
+      // 记录观察历史(浏览量变了才追加),最多留 8 条,用来算趋势
+      const prevInfo = tweetInfo.get(t.id);
+      const obs = prevInfo ? prevInfo.obs : [];
+      if (!obs.length || obs[obs.length - 1].views !== t.views) {
+        obs.push({ views: t.views, at: Date.now() });
+        if (obs.length > 8) obs.shift();
+      }
+      tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author, obs });
       if (tweetSeen.has(t.id)) continue;
       tweetSeen.add(t.id);
       const s = stats.get(t.author) || { views: 0, interactions: 0 };
@@ -235,22 +242,32 @@
   }
 
   // 别的插件(比如 SoPilot)会在 article 下挂绝对定位的浮层,压在头部右侧。
-  // 发现与头部这一行重叠的浮层,就把流速标挪到它的左边,不盖也不被盖。
-  function avoidOverlays(chip, article, menu) {
-    const menuLeft = menu.getBoundingClientRect().left;
-    const rowRect = chip.parentElement.getBoundingClientRect();
-    let gap = 8;
+  // 返回这些与头部这一行重叠的浮层(不含我们自己的)。
+  function headerOverlays(article, row) {
+    const rowRect = row.getBoundingClientRect();
+    const out = [];
     for (const el of article.children) {
-      if (el.contains(chip)) continue;
+      if (el.contains(row)) continue;
       const pos = getComputedStyle(el).position;
       if (pos !== "absolute" && pos !== "fixed") continue;
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height || r.bottom <= rowRect.top || r.top >= rowRect.bottom) continue;
-      gap = Math.max(gap, menuLeft - r.left + 6);
+      if (r.right <= rowRect.left || r.left >= rowRect.right) continue;   // 横向也要真的压在这一行上
+      out.push(r);
     }
+    return out;
+  }
+
+  // 固定放头部时:让到浮层的左边,不盖也不被盖
+  function avoidOverlays(chip, article, row, menu) {
+    const menuLeft = menu.getBoundingClientRect().left;
+    let gap = 8;
+    for (const r of headerOverlays(article, row)) gap = Math.max(gap, menuLeft - r.left + 6);
     const v = Math.round(gap) + "px";
     if (chip.style.marginRight !== v) chip.style.marginRight = v;
   }
+
+  const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h.toFixed(1) + " 小时");
 
   function decorateFlow(article) {
     const un = article.querySelector('[data-testid="User-Name"]');
@@ -262,37 +279,49 @@
     const flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
     if (!flow) { if (old) old.remove(); return; }
 
-    // 位置:头部右侧(菜单区左边的空档,默认)或底部操作栏。头部结构不符时退回操作栏。
+    // 位置:auto = 头部右侧没被别的插件占着就放头部,否则放底部浏览量旁
     const row = un && headerRow(un);
     const menu = row && row.lastElementChild;
-    const inHeader = settings.flowPos !== "bar" && !!menu && !menu.classList.contains("fl-flow");
+    const headerOk = !!menu && !menu.classList.contains("fl-flow");
+    const overlaid = headerOk && headerOverlays(article, row).length > 0;
     const cell = link && link.parentElement;
+    const mode = settings.flowPos;
+    let inHeader = headerOk && (mode === "header" || (mode === "auto" && !overlaid));
+    if (!inHeader && !cell) inHeader = headerOk;        // 底部没有浏览量那一格(比如自己的推文)就退回头部
     if (!inHeader && !cell) { if (old) old.remove(); return; }
 
-    const sig = `${P.fmtRate(flow.rate)}|${flow.tier}|${settingsVer}|${inHeader ? "h" : "b"}`;
+    const trend = P.trendOf(info.obs, flow.rate);
+    const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
+    const sig = `${P.fmtRate(flow.rate)}|${flow.tier}|${arrow}|${settingsVer}|${inHeader ? "h" : "b"}`;
     if (old && old.isConnected && old.dataset.flSig === sig) {
-      if (inHeader) avoidOverlays(old, article, menu);
+      if (inHeader && mode === "header") avoidOverlays(old, article, row, menu);
       return;
     }
     if (old) old.remove();
 
+    const rate = `${P.fmtRate(flow.rate)}/h`;
     const chip = document.createElement("span");
     chip.className = `fl-flow f${flow.tier}` + (inHeader ? " fl-flow-h" : "");
     chip.dataset.flSig = sig;
-    chip.textContent = `${flow.emoji} ${flow.name}`;
-    const modeText = settings.flowMode === "rel" ? "(按粉丝量折算)" : "";
-    chip.title = `流速 ${flow.name}${modeText}\n约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时\n发布 ${flow.ageH < 1 ? Math.round(flow.ageH * 60) + " 分钟" : flow.ageH.toFixed(1) + " 小时"}`;
+    const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
+      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)})`];
+    if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
+    chip.title = lines.join("\n");
+
+    // 从详细到简略,放得下哪个就用哪个
+    const levels = inHeader
+      ? [`${flow.emoji} ${flow.name} ${rate}${arrow}`, `${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`]
+      : [`${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`];
     if (inHeader) {
       // 先撤下这条推文已有的粉丝徽标,等流速标就位后,render 会按"放得下行内、放不下换行"重新放
       const rec = placed.get(un);
       if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); placed.delete(un); }
       menu.before(chip);
-      // 不算徽标,名字和 @ID 自己都放不下时,才只留图标
-      if (crowded(un, chip)) chip.textContent = flow.emoji;
-      avoidOverlays(chip, article, menu);
+      for (const t of levels) { chip.textContent = t; if (!crowded(un, chip)) break; }
+      if (mode === "header") avoidOverlays(chip, article, row, menu);
     } else {
       cell.append(chip);
-      if (cell.scrollWidth > cell.clientWidth + 1) chip.textContent = flow.emoji;   // 这一格放不下文字
+      for (const t of levels) { chip.textContent = t; if (cell.scrollWidth <= cell.clientWidth + 1) break; }
     }
   }
 
