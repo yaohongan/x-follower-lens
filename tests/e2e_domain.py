@@ -49,7 +49,7 @@ with sync_playwright() as p:
     check("关闭'内容方向'标签:全部不显示",pg.evaluate("document.querySelectorAll('.fl-tag.dom').length")==0)
     pop.bring_to_front(); pop.click('input[data-tag="domain"] + span'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     check("重新打开:方向标签回来",pg.evaluate("document.querySelectorAll('.fl-tag.dom').length")>=4)
-    pg.wait_for_timeout(3500)
+    pg.wait_for_timeout(21500)
     pop.bring_to_front(); pop.reload(); pop.wait_for_timeout(500)
     stored=pop.evaluate("new Promise(r=>chrome.storage.local.get('fl_dom',x=>r(x.fl_dom||null)))")
     check("方向累计真的写进了本地存储(blanky 有 web3 命中;转推账号 rtguy 没有)",stored and "blanky" in stored and stored["blanky"][1].get("web3",0)>=3 and "rtguy" not in stored,stored)

@@ -111,57 +111,59 @@
   background: rgba(0, 0, 0, 0.65); border-radius: 6px; pointer-events: none;
 }
 
-/* ========== 流速动效:只给 🚀 火箭(f3)和 ⚡ 光速(f4)两档 ========== */
-.fl-flow.fl-fx { position: relative; overflow: hidden; color: #fff; font-weight: 800; letter-spacing: 0.2px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); border: 0; }
-.fl-flow.fl-fx:not(.fl-flow-c) { position: relative; }
-.fl-flow.fl-flow-c.fl-fx { position: absolute; }   /* 角落模式保持绝对定位(行内样式里设置) */
-.fl-flow.fl-fx .fl-emo { display: inline-block; }
-
-/* 火箭:橙红流动渐变 + 暖光脉冲 + 图标喷射抖动 + 流光扫过 */
-.fl-flow.fl-fx.f3 {
-  background: linear-gradient(100deg, #ff9500 0%, #ff3b30 50%, #ff9500 100%);
-  background-size: 200% 100%;
-  animation: fl-slide 2.6s linear infinite, fl-glow-warm 1.6s ease-in-out infinite;
+/* ========== 流速动效:只给 🚀 火箭(f3)和 ⚡ 光速(f4)两档 ==========
+   性能要点:所有动画只用 transform 和 opacity(交给 GPU 合成线程,不占主线程)。
+   不用 background-position / box-shadow 做动画,那两种每一帧都要主线程重绘,几十个同时跑会拖慢整个页面。 */
+.fl-flow.fl-fx {
+  position: relative; isolation: isolate; border: 0;
+  color: #fff; font-weight: 800; letter-spacing: 0.2px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  background: var(--fl-bg, #fff);          /* 底色用页面色,保证角落模式能完整盖住别人的标 */
 }
-.fl-flow.fl-fx.f3 .fl-emo { animation: fl-thrust 0.32s linear infinite; }
+.fl-flow.fl-flow-c.fl-fx { position: absolute; }
+.fl-flow.fl-fx .fl-emo { display: inline-block; will-change: transform; }
 
-/* 光速:粉-紫-青霓虹流动 + 电光脉冲 + 图标闪烁 + 更快的流光 */
-.fl-flow.fl-fx.f4 {
-  background: linear-gradient(100deg, #ff2d95 0%, #8b5cf6 33%, #06b6d4 66%, #ff2d95 100%);
-  background-size: 300% 100%;
-  animation: fl-slide 1.5s linear infinite, fl-glow-neon 1s ease-in-out infinite;
+/* 流动渐变层:一条两倍宽的渐变(图案重复两次),整体平移半个宽度,首尾无缝 */
+.fl-fxbg { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; z-index: -1; pointer-events: none; }
+.fl-fxbg::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 200%; will-change: transform;
+  animation: fl-flow-x 2.6s linear infinite;
 }
-.fl-flow.fl-fx.f4 .fl-emo { animation: fl-flicker 1.1s ease-in-out infinite; }
-.fl-flow.fl-fx::after {
-  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; pointer-events: none;
+.fl-flow.f3 .fl-fxbg::before { background: linear-gradient(90deg, #ff9500, #ff3b30, #ff9500, #ff3b30, #ff9500); }
+.fl-flow.f4 .fl-fxbg::before { background: linear-gradient(90deg, #ff2d95, #8b5cf6, #06b6d4, #ff2d95, #8b5cf6, #06b6d4, #ff2d95); animation-duration: 1.5s; }
+/* 流光:一道斜的高光扫过 */
+.fl-fxbg::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; will-change: transform;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
   transform: translateX(-130%) skewX(-20deg);
   animation: fl-sweep 2.4s ease-in-out infinite;
 }
-.fl-flow.fl-fx.f4::after { animation-duration: 1.4s; }
+.fl-flow.f4 .fl-fxbg::after { animation-duration: 1.4s; }
+/* 发光:静态的 box-shadow 放在伪元素上,只让它的透明度脉冲 */
+.fl-flow.fl-fx::after {
+  content: ""; position: absolute; inset: -2px; border-radius: inherit; z-index: -2; pointer-events: none; will-change: opacity;
+  opacity: 0.45; animation: fl-glow-op 1.6s ease-in-out infinite;
+}
+.fl-flow.f3::after { box-shadow: 0 0 12px 1px rgba(255, 100, 20, 0.9); }
+.fl-flow.f4::after { box-shadow: 0 0 14px 1px rgba(6, 182, 212, 0.9), 0 0 8px rgba(255, 45, 149, 0.8); animation-duration: 1s; }
+.fl-flow.f3 .fl-emo { animation: fl-thrust 0.32s linear infinite; }
+.fl-flow.f4 .fl-emo { animation: fl-flicker 1.1s ease-in-out infinite; }
 
-@keyframes fl-slide { to { background-position: 200% 0; } }
+@keyframes fl-flow-x { to { transform: translateX(-50%); } }
 @keyframes fl-sweep { 0% { transform: translateX(-130%) skewX(-20deg); } 55%, 100% { transform: translateX(330%) skewX(-20deg); } }
-@keyframes fl-glow-warm {
-  0%, 100% { box-shadow: 0 0 5px rgba(255, 140, 30, 0.55); }
-  50% { box-shadow: 0 0 0 2px rgba(255, 110, 30, 0.14), 0 0 13px rgba(255, 90, 20, 0.85); }
-}
-@keyframes fl-glow-neon {
-  0%, 100% { box-shadow: 0 0 6px rgba(255, 45, 149, 0.6), 0 0 2px rgba(6, 182, 212, 0.6); }
-  50% { box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.16), 0 0 16px rgba(6, 182, 212, 0.9), 0 0 8px rgba(255, 45, 149, 0.8); }
-}
+@keyframes fl-glow-op { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 @keyframes fl-thrust { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(0.6px, -0.9px); } 75% { transform: translate(-0.6px, 0.7px); } }
 @keyframes fl-flicker { 0%, 100% { opacity: 1; transform: scale(1); } 44% { opacity: 1; transform: scale(1); } 48% { opacity: 0.5; transform: scale(0.88); } 52% { opacity: 1; transform: scale(1.3) rotate(-6deg); } 58% { opacity: 0.75; } }
 
 /* 系统开了"减少动态效果":保留渐变配色,关掉所有动画 */
 @media (prefers-reduced-motion: reduce) {
-  .fl-flow.fl-fx, .fl-flow.fl-fx .fl-emo { animation: none !important; }
-  .fl-flow.fl-fx::after { display: none; }
+  .fl-fxbg::before, .fl-fxbg::after, .fl-flow.fl-fx::after, .fl-flow.fl-fx .fl-emo { animation: none !important; }
+  .fl-fxbg::after { display: none; }
+  .fl-flow.fl-fx::after { opacity: 0.7; }
 }
 
 /* ========== 趣味模式:头像光环(按这条推文的流速;🚲 以下不加) ========== */
 .fl-ring {
-  position: absolute; inset: -4px; padding: 3px; pointer-events: none; z-index: 3; box-sizing: border-box;
+  position: absolute; inset: -4px; padding: 3px; pointer-events: none; z-index: 3; box-sizing: border-box; will-change: transform;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;      /* 只留中间镂空的一圈 */
 }

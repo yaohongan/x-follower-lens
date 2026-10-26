@@ -1,4 +1,4 @@
-"""头像光环(趣味模式)测试:默认关、按流速档位、圆/方头像、角标、动画、关闭、减少动态效果。
+"""头像光环测试:默认开、按流速档位、圆/方头像、角标、动画、关闭、减少动态效果。
 运行:python3 tests/e2e_avatar.py"""
 import json, tempfile, time, hashlib, os
 from playwright.sync_api import sync_playwright
@@ -25,10 +25,10 @@ with sync_playwright() as p:
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("https://x.com/home"); pg.wait_for_timeout(2500)
     rings="""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('[data-testid^=UserAvatar-Container-]');const r=c.querySelector(':scope > .fl-ring');const b=c.querySelector(':scope > .fl-ring-badge');return r?{cls:r.className,anim:getComputedStyle(r).animationName,badge:b?b.textContent:null,n:c.querySelectorAll('.fl-ring').length}:null})"""
-    check("默认关闭:一个光环都没有",all(x is None for x in pg.evaluate(rings)))
+    check("默认开启:🛵 以上都有光环",pg.evaluate(rings)[3] is not None)
     pop=ctx.new_page(); pop.goto(f"chrome-extension://{eid}/popup.html"); pop.wait_for_timeout(600)
-    check("弹窗:头像光环默认未勾选",not pop.evaluate("document.querySelector('input[data-key=avatarFx]').checked"))
-    pop.click('input[data-key=avatarFx]'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1500)
+    check("弹窗:头像光环默认勾选",pop.evaluate("document.querySelector('input[data-key=avatarFx]').checked"))
+    pg.bring_to_front(); pg.wait_for_timeout(500)
     s=pg.evaluate(rings); print(json.dumps(s,ensure_ascii=False))
     check("🐢 龟速、🚲 自行车:不加光环(免得太吵)",s[0] is None and s[1] is None)
     check("🛵 小电驴:绿色静态光环、无角标",s[2] and "r2" in s[2]["cls"] and s[2]["anim"]=="none" and s[2]["badge"] is None,s[2])

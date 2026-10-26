@@ -4,7 +4,7 @@
   const HIST_KEY = "fl_hist";
   const DOM_KEY = "fl_dom";
   const HIST_MAX_USERS = 3000;
-  const HIST_MAX_POINTS = 40;
+  const HIST_MAX_POINTS = 24;
   const HIST_MIN_GAP = 6 * 3600e3;
 
   const users = new Map();      // handle -> user
@@ -46,7 +46,8 @@
   }
 
   function flush() {
-    while (pending.length) handleMessage(pending.shift());
+    while (pending.length) queue.push(pending.shift());
+    if (queue.length && !draining) { draining = true; whenIdle(drain); }
     scheduleRender();
   }
 
@@ -61,40 +62,60 @@
   }
 
   let saveTimer = null;
+  function doSave() {
+    saveTimer = null;
+    const out = {};
+    if (histDirty) {
+      histDirty = false;
+      const handles = Object.keys(hist);
+      if (handles.length > HIST_MAX_USERS) {
+        handles
+          .sort((a, b) => hist[a][hist[a].length - 1][0] - hist[b][hist[b].length - 1][0])
+          .slice(0, handles.length - HIST_MAX_USERS)
+          .forEach((h) => delete hist[h]);
+      }
+      out[HIST_KEY] = hist;
+    }
+    if (domDirty) {
+      domDirty = false;
+      const rows = [...domScores.entries()].sort((a, b) => b[1].ts - a[1].ts).slice(0, HIST_MAX_USERS);
+      const obj = {};
+      for (const [h, v] of rows) obj[h] = [v.ts, v.s];
+      out[DOM_KEY] = obj;
+    }
+    if (storage && Object.keys(out).length) { try { storage.set(out); } catch (_) {} }
+  }
+  // 平时 20 秒才存一次(整份历史序列化不小,滚动时别频繁存);页面切到后台或关闭时立刻存,不丢数据
   function scheduleSave() {
     if (!storage || saveTimer) return;
-    saveTimer = setTimeout(() => {
-      saveTimer = null;
-      const out = {};
-      if (histDirty) {
-        histDirty = false;
-        const handles = Object.keys(hist);
-        if (handles.length > HIST_MAX_USERS) {
-          handles
-            .sort((a, b) => hist[a][hist[a].length - 1][0] - hist[b][hist[b].length - 1][0])
-            .slice(0, handles.length - HIST_MAX_USERS)
-            .forEach((h) => delete hist[h]);
-        }
-        out[HIST_KEY] = hist;
-      }
-      if (domDirty) {
-        domDirty = false;
-        const rows = [...domScores.entries()].sort((a, b) => b[1].ts - a[1].ts).slice(0, HIST_MAX_USERS);
-        const obj = {};
-        for (const [h, v] of rows) obj[h] = [v.ts, v.s];
-        out[DOM_KEY] = obj;
-      }
-      if (Object.keys(out).length) { try { storage.set(out); } catch (_) {} }
-    }, 3000);
+    saveTimer = setTimeout(doSave, 20000);
   }
+  function flushSave() {
+    if (saveTimer) { clearTimeout(saveTimer); doSave(); }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.hidden) flushSave(); });
+  window.addEventListener("pagehide", flushSave);
 
   // ---------- 数据包处理 ----------
+  // 数据包先排队,浏览器空闲时一个一个处理:页面刚打开时 X 自己很忙,别在这时候抢主线程
+  const queue = [];
+  let draining = false;
+  const whenIdle = (fn) => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 400 }) : setTimeout(() => fn(null), 16));
+  function drain(deadline) {
+    do { handleMessage(queue.shift()); } while (queue.length && deadline && !deadline.didTimeout && deadline.timeRemaining() > 8);
+    scheduleRender();
+    if (queue.length) whenIdle(drain); else draining = false;
+  }
+  function enqueue(body) {
+    queue.push(body);
+    if (!draining) { draining = true; whenIdle(drain); }
+  }
+
   window.addEventListener("message", (e) => {
     if (e.source !== window || !e.data || e.data.source !== "follower-lens") return;
     msgCount++;
     if (!settings) { pending.push(e.data.body); return; }
-    handleMessage(e.data.body);
-    scheduleRender();
+    enqueue(e.data.body);
   });
 
   function handleMessage(body) {
@@ -278,7 +299,7 @@
     const rowRect = row.getBoundingClientRect();
     const out = [];
     for (const el of article.children) {
-      if (el.contains(row)) continue;
+      if (el.contains(row) || isOurs(el)) continue;       // 自己的元素(比如上一次放的角落标)不算"别人的浮层"
       const pos = getComputedStyle(el).position;
       if (pos !== "absolute" && pos !== "fixed") continue;
       const r = el.getBoundingClientRect();
@@ -298,6 +319,15 @@
     if (chip.style.marginRight !== v) chip.style.marginRight = v;
   }
 
+  // 页面底色:body 的背景;是透明的就看 html 的;还是透明就用白色。角落标要用它当底色才盖得住别人的标。
+  function pageBg() {
+    for (const el of [document.body, document.documentElement]) {
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && !/^rgba\(.*,\s*0\)$/.test(bg) && bg !== "transparent") return bg;
+    }
+    return "#fff";
+  }
+
   // 名字和 @ID 内容最右边的位置(用来判断角落的标会不会压住它们)
   function contentRight(un) {
     let r = 0;
@@ -308,7 +338,7 @@
   // 固定在标题行右上角:坐标与常见插件的流速标一致(距右 96px、距顶 10px)。
   // 那个位置已有别的插件的标时,宽高对齐它、层级比它高 1,把它完整盖住;没有就用默认值。
   function placeCorner(chip, article, row) {
-    const others = [...article.children].filter((el) => el !== chip && getComputedStyle(el).position === "absolute" && el.getBoundingClientRect().width > 0 && (() => {
+    const others = [...article.children].filter((el) => el !== chip && !isOurs(el) && getComputedStyle(el).position === "absolute" && el.getBoundingClientRect().width > 0 && (() => {
       const r = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
       return r.bottom > rr.top && r.top < rr.bottom && r.right > rr.left && r.left < rr.right;
     })());
@@ -326,6 +356,11 @@
   // 图标单独包一层(动效要让图标单独抖动),其余是文字
   function setChip(chip, text, emoji) {
     chip.textContent = "";
+    if (chip.classList.contains("fl-fx")) {      // 动效的渐变层(放在最底下,不挡文字)
+      const bg = document.createElement("span");
+      bg.className = "fl-fxbg";
+      chip.append(bg);
+    }
     const e = document.createElement("span");
     e.className = "fl-emo";
     e.textContent = emoji;
@@ -334,9 +369,9 @@
 
   const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h.toFixed(1) + " 小时");
 
+  const flowRechecked = new WeakSet();   // 每条推文只在放好后复查一次位置(别的插件的浮层可能晚到)
+
   function decorateFlow(article) {
-    const un = article.querySelector('[data-testid="User-Name"]');
-    const link = article.querySelector('[role="group"] a[href$="/analytics"]');
     const old = article.querySelector(".fl-flow");
     const id = tweetIdOf(article);
     const info = id && tweetInfo.get(id);
@@ -345,6 +380,14 @@
     flowTier.set(article, flow ? flow.tier : -1);
     if (!flow) { if (old) old.remove(); return; }
 
+    const trend = P.trendOf(info.obs, flow.rate);
+    const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
+    // 稳态快路径:内容没变就直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排,是最大的开销)
+    const sig0 = `${P.fmtRate(flow.rate)}|${flow.tier}|${arrow}|${settingsVer}`;
+    if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
+
+    const un = article.querySelector('[data-testid="User-Name"]');
+    const link = article.querySelector('[role="group"] a[href$="/analytics"]');
     // 位置:corner = 固定在标题行右上角,和常见插件的流速标同一个位置(盖在它上面,不改它);
     //       auto = 头部右侧没被占就放头部,否则放底部;header / bar = 固定头部 / 底部
     const row = un && headerRow(un);
@@ -358,20 +401,12 @@
     if (!place) { if (old) old.remove(); return; }
     const inHeader = place === "h";
 
-    const trend = P.trendOf(info.obs, flow.rate);
-    const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
-    const sig = `${P.fmtRate(flow.rate)}|${flow.tier}|${arrow}|${settingsVer}|${place}`;
-    if (old && old.isConnected && old.dataset.flSig === sig) {
-      if (inHeader && mode === "header") avoidOverlays(old, article, row, menu);
-      if (place === "c") placeCorner(old, article, row);        // 别的插件的标可能晚到、宽度会变,每次重新对位
-      return;
-    }
     if (old) old.remove();
 
     const rate = `${P.fmtRate(flow.rate)}/h`;
     const chip = document.createElement("span");
     chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
-    chip.dataset.flSig = sig;
+    chip.dataset.flSig0 = sig0;
     const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
       `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)})`];
     if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
@@ -382,7 +417,7 @@
       ? [`${flow.emoji} ${flow.name} ${rate}${arrow}`, `${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`]
       : [`${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`];
     if (place === "c") {
-      chip.style.setProperty("--fl-bg", getComputedStyle(document.body).backgroundColor);
+      chip.style.setProperty("--fl-bg", pageBg());
       article.append(chip);
       placeCorner(chip, article, row);
       // 从详细到简略,选不压住名字和 @ID 的最详细一档
@@ -391,7 +426,7 @@
       for (const t of levels) { setChip(chip, t, flow.emoji); placeCorner(chip, article, row); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
       // 连图标都会压住名字:改放到底部浏览量旁
       if (!fitted && cell) {
-        chip.remove(); chip.classList.remove("fl-flow-c"); chip.removeAttribute("style"); chip.dataset.flSig = sig.replace(/\|c$/, "|b");
+        chip.remove(); chip.classList.remove("fl-flow-c"); chip.removeAttribute("style");
         cell.append(chip);
         for (const t of levels.slice(1)) { setChip(chip, t, flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       }
@@ -405,6 +440,14 @@
     } else {
       cell.append(chip);
       for (const t of levels) { setChip(chip, t, flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+    }
+    // 别的插件的浮层可能比我们晚到:放好 1.5 秒后复查一次位置(只一次),之后不再碰布局
+    if (!flowRechecked.has(article)) {
+      flowRechecked.add(article);
+      setTimeout(() => {
+        const c2 = article.querySelector(".fl-flow");
+        if (c2 && c2.isConnected) { c2.dataset.flSig0 = ""; scheduleRender(); }
+      }, 1500);
     }
   }
 
@@ -425,13 +468,13 @@
     const want = settings.avatarFx && tier >= 2 ? tier : -1;
     const ring = container.querySelector(":scope > .fl-ring");
     if (want < 0) { if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); } return; }
+    if (ring && ring.dataset.flTier === String(want)) return;   // 稳态:档位没变就直接返回(isRound 要读样式,只在创建时算)
     const round = isRound(container);
-    const sig = `${want}|${round ? "r" : "s"}`;
-    if (ring && ring.dataset.flSig === sig) return;
+    const sig = String(want);
     if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); }
     const el = document.createElement("span");
     el.className = `fl-ring r${want}` + (round ? " round" : " square");
-    el.dataset.flSig = sig;
+    el.dataset.flTier = sig;
     container.append(el);
     if (want >= 3) {
       const b = document.createElement("span");
@@ -466,13 +509,25 @@
   let timer = null;
   function scheduleRender() {
     if (timer) return;
-    timer = setTimeout(() => { timer = null; render(); }, 150);
+    timer = setTimeout(() => { timer = null; render(); }, 200);
   }
 
-  new MutationObserver(scheduleRender).observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
+  // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
+  const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"]';
+  function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || (typeof n.className === "string" && n.className.includes("fl-"))); }
+  new MutationObserver((muts) => {
+    for (const m of muts) {
+      const t = m.target;
+      if (t.nodeType === 1 && t.closest && t.closest('[class*="fl-"], #fl-tip, #fl-hud')) continue;   // 我们自己的元素里的变动
+      let hit = false;
+      for (const n of m.addedNodes) {
+        if (n.nodeType !== 1 || isOurs(n)) continue;
+        if (n.matches(REL) || n.querySelector(REL)) { hit = true; break; }
+      }
+      if (!hit && t.nodeType === 1 && t.closest && t.closest(REL) && [...m.addedNodes].some((n) => n.nodeType === 1 && !isOurs(n))) hit = true;   // 推文内部新长出的节点(操作栏、头像……)
+      if (hit) { scheduleRender(); return; }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
 
   // ---------- 调试条 ----------
   let hud = null;

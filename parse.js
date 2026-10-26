@@ -12,7 +12,7 @@
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
-    avatarFx: false,      // 头像装饰(趣味模式):按这条推文的流速,给作者头像加一圈光环
+    avatarFx: true,       // 头像光环:按这条推文的流速,给作者头像加一圈光环(🛵 以上)
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
     flowPos: "corner",    // 流速位置:corner 固定在标题行右上角(盖住别的插件在同位置的标)/ auto 自动避让 / header 头部右侧 / bar 底部操作栏
     layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
@@ -81,12 +81,11 @@
   function extract(json) {
     const users = [];
     const tweets = [];
-    const seen = new WeakSet();
 
+    // JSON.parse 出来的是树,没有环,不需要 WeakSet 去重(对几百 KB 的响应能省不少)
     (function walk(node) {
-      if (!node || typeof node !== "object" || seen.has(node)) return;
-      seen.add(node);
-      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) { for (let i = 0; i < node.length; i++) walk(node[i]); return; }
 
       if (node.__typename === "User") {
         const u = readUser(node);
@@ -209,7 +208,9 @@
   const BUILTIN = DOMAINS.map(compileDomain);
 
   // 自定义方向:每行"名称=关键词1,关键词2"。排在内置之前,权重 1.2(你写的优先)
+  const customCache = { text: null, rows: [] };
   function parseCustomDomains(text) {
+    if (customCache.text === text) return customCache.rows;     // 词典没变就复用,别每个账号都重新编译
     const out = [];
     String(text || "").split(/\r?\n/).forEach((line, i) => {
       const m = line.match(/^\s*([^=]{1,8}?)\s*[=＝]\s*(.+)$/);
@@ -217,6 +218,7 @@
       const kw = m[2].split(/[,，、]/).map((x) => x.trim()).filter(Boolean);
       if (kw.length) out.push(compileDomain({ key: "custom" + i, name: m[1].trim(), weight: 1.2, kw }));
     });
+    customCache.text = text; customCache.rows = out;
     return out;
   }
 

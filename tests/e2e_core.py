@@ -43,7 +43,7 @@ with sync_playwright() as p:
     check("设置即时生效:大V标签消失、布局=单独一行","大V" not in s[0]["text"] and s[0]["below"] and s[1]["below"],s[0]["text"])
     pop.bring_to_front(); pop.click('input[data-key=maxTags][value="0"] + span'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1000)
     check("标签数=0:只剩粉丝数",pg.evaluate(st)[0]["tags"]==0)
-    pg.wait_for_timeout(3500); pop.bring_to_front(); pop.reload(); pop.wait_for_timeout(600)
+    pg.wait_for_timeout(21500); pop.bring_to_front(); pop.reload(); pop.wait_for_timeout(600)
     check("历史记录已写入",int(pop.inner_text("#histCount"))>=3,pop.inner_text("#histCount"))
     pop.click("#clearHist"); pop.wait_for_timeout(400); check("清除记录",pop.inner_text("#histCount")=="0")
     pop.click('header .sw.big input'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1000)
