@@ -11,8 +11,8 @@ def user(h,fol): return {"__typename":"User","rest_id":h,"core":{"screen_name":h
 def tweet(i,u,views,age): return {"__typename":"Tweet","rest_id":str(i),"views":{"count":str(views)},"legacy":{"favorite_count":1,"retweet_count":0,"reply_count":0,"quote_count":0,"created_at":ago(age)},"core":{"user_results":{"result":u}}}
 # id, 账号, 粉丝, 浏览量, 发布几小时前, 头部整行宽度, 操作栏"浏览量"格宽度
 cases=[(1,"rocketguy",100,5000,2,518,111),(2,"turtleguy",100,20,2,518,111),(3,"oldguy",100,20,30,518,111),
-       (4,"bigacct",50000,900,2,518,111),(5,"narrowbar",100,5000,2,518,60),(6,"fresh",100,900,0.05,518,111),
-       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111),(9,"oldfast",100,100000,30,518,111),(10,"ancient",100,100000,800,518,111)]
+       (4,"bigacct",50000,900,2,518,111),(5,"narrowbar",100,5000,2,518,60),(6,"fresh",100,10,0.2,518,111),
+       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111),(9,"oldfast",100,100000,30,518,111),(10,"ancient",100,100000,800,518,111),(11,"freshfast",100,900,0.05,518,111),(12,"tinyviews",100,5,0.05,518,111)]
 data=json.dumps({"data":[tweet(i,user(h,f),v,a) for i,h,f,v,a,rw,w in cases]})
 # 复刻真实结构:头部整行(space-between) = [名字区 > 列 > User-Name] + [别的插件的小标] + [菜单区];底部操作栏第 4 格放浏览量链接
 def art(i,h,rw,w):
@@ -94,7 +94,9 @@ with sync_playwright() as p:
     check("发布 30 小时但很快:显示,并说明是发布以来的平均速度,不带趋势箭头",s[8] and "平均速度" in s[8]["title"] and not any(a in s[8]["t"] for a in "↗↘"),s[8])
     check("发布超过 30 天:不显示",s[9] is None)
     check("900次/2h(粉丝5万,绝对)=小电驴;头部放得下时:名称+数字",s[3] and "小电驴" in s[3]["t"] and "/h" in s[3]["t"],s[3] and s[3]["t"])
-    check("发布不足 15 分钟:不显示",s[5] is None)
+    check("刚发布(12 分钟)10 次浏览 = 50/h:显示 🚲 自行车(刚发布也要有)",s[5] and "自行车" in s[5]["t"],s[5] and s[5]["t"])
+    check("刚发布(3 分钟)但已经很快:显示,提示里说明数字还不稳",s[10] and "刚发布" in s[10]["title"],s[10])
+    check("浏览量不到 10 的:不显示(样本太小)",s[11] is None)
     check("每条推文只有一个流速标",all(x["cnt"]==1 for x in s if x))
     pop0.click('input[data-key=flowPos][value=header] + span'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     ov=pg.evaluate("""(()=>{const a=document.querySelector('article');const o=a.querySelector('.sopilot-x-velocity-host').getBoundingClientRect();

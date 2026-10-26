@@ -264,13 +264,15 @@
   ];
   const FLOW_ABS = [30, 150, 600, 3000];   // 每小时浏览量的分档线
   const FLOW_REL = [0.5, 2, 8, 30];        // 每小时、每千粉丝的浏览量
-  const FLOW_MIN_AGE_H = 0.25;             // 发布不足 15 分钟:太早,数字不稳
+  const FLOW_MIN_AGE_H = 1 / 60;           // 发布不足 1 分钟:太早,不算
+  const FLOW_FRESH_MIN_H = 0.25;           // 15 分钟内算"刚发布":浏览量还少,数字不稳,低档位(龟速)会误导,不显示
+  const FLOW_MIN_VIEWS = 10;               // 浏览量不到 10:样本太小,不算
   const FLOW_FRESH_H = 24;                 // 24 小时内:"实时流速",带趋势箭头
   const FLOW_MAX_AGE_H = 720;              // 超过 30 天不算。24 小时~30 天之间是"发布以来的平均速度"(old: true)
 
   // t: { views, createdAt }  返回 null 表示不显示
   function flowOf(t, followers, now, mode) {
-    if (!t || !t.createdAt || !(t.views > 0)) return null;
+    if (!t || !t.createdAt || !(t.views >= FLOW_MIN_VIEWS)) return null;
     const ageH = (now - new Date(t.createdAt).getTime()) / 3600e3;
     if (!(ageH >= FLOW_MIN_AGE_H) || ageH > FLOW_MAX_AGE_H) return null;
     const rate = t.views / ageH;
@@ -279,7 +281,7 @@
     const lines = rel ? FLOW_REL : FLOW_ABS;
     let idx = 0;
     while (idx < lines.length && value >= lines[idx]) idx++;
-    return { rate, ageH, tier: idx, old: ageH > FLOW_FRESH_H, ...FLOW_TIERS[idx] };
+    return { rate, ageH, tier: idx, old: ageH > FLOW_FRESH_H, fresh: ageH < FLOW_FRESH_MIN_H, ...FLOW_TIERS[idx] };
   }
 
   // 趋势:用同一条推文的几次观察(浏览量 + 时间),算"最近这一阵"的速度,和发布以来的平均速度比。

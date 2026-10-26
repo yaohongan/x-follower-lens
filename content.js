@@ -380,7 +380,7 @@
 
   function flowTooltip(flow, trend) {
     const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
-      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)}${flow.old ? ",这是发布以来的平均速度" : ""})`];
+      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)}${flow.old ? ",这是发布以来的平均速度" : flow.fresh ? ",刚发布,数字还不稳" : ""})`];
     if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
     return lines.join("\n");
   }
@@ -394,6 +394,8 @@
     // 超过 24 小时的老推文只给"发布以来的平均速度",而且只有 🛵 小电驴以上才显示:
     // 否则个人主页上每条老推文都挂个"龟速",又吵又得罪创作者
     if (flow && flow.old && flow.tier < 2) flow = null;
+    // 刚发布(15 分钟内)的推文浏览量还少:只显示 🚲 自行车以上,不显示龟速(那是"还没来得及涨",不是"慢")
+    if (flow && flow.fresh && flow.tier < 1) flow = null;
     flowTier.set(article, flow ? flow.tier : -1);
     if (!flow) { if (old) old.remove(); return; }
 
@@ -492,7 +494,7 @@
     }
   }
 
-  // ----- 趣味模式:按这条推文的流速,给作者头像外面叠一圈光环(🚲 以下不加,免得太吵)-----
+  // ----- 头像光环:按这条推文的流速,每一档配不一样的光环 -----
   // 头像是圆的还是方的:true 圆 / false 方 / null 还读不到(图片没加载完,圆角样式还没落下来)
   // 个人头像圆角是 9999px,企业号的方头像是几 px 的小圆角。
   function roundness(container) {
@@ -514,7 +516,7 @@
     const container = article.querySelector('[data-testid^="UserAvatar-Container-"]');
     if (!container) return;
     const tier = flowTier.get(article);
-    const want = settings.avatarFx && tier >= 2 ? tier : -1;
+    const want = settings.avatarFx && tier >= 0 ? tier : -1;   // 每一档都有光环(慢档低调,快档华丽);只有没有流速标的推文没有
     const ring = container.querySelector(":scope > .fl-ring");
     if (want < 0) { if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); } return; }
     if (ring && ring.dataset.flTier === String(want)) {
