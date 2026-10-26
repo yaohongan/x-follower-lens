@@ -44,7 +44,21 @@
 }
 .fl-tag.hi   { background: rgba(0, 186, 124, 0.15);  color: rgb(0, 150, 100); }
 .fl-tag.warn { background: rgba(249, 24, 128, 0.12); color: rgb(220, 30, 110); }
-.fl-tag.dom  { background: rgba(14, 165, 233, 0.14); color: rgb(2, 132, 199); }
+/* 内容方向:实心底 + 白字,每个方向一种颜色(和"互关/大V/老号"这类浅色底的状态标签区分开) */
+.fl-tag.dom  { background: #0284c7; color: #fff; font-weight: 600; }
+.fl-tag.dom[data-dom="code"]    { background: #4f46e5; }   /* AI编程  靛蓝 */
+.fl-tag.dom[data-dom="agent"]   { background: #0d9488; }   /* 智能体  青绿 */
+.fl-tag.dom[data-dom="video"]   { background: #e11d48; }   /* AI视频  玫红 */
+.fl-tag.dom[data-dom="design"]  { background: #c026d3; }   /* AI设计  品红 */
+.fl-tag.dom[data-dom="model"]   { background: #2563eb; }   /* 大模型  蓝 */
+.fl-tag.dom[data-dom="biz"]     { background: #ea580c; }   /* 出海变现 橙 */
+.fl-tag.dom[data-dom="tools"]   { background: #0891b2; }   /* AI工具  青 */
+.fl-tag.dom[data-dom="creator"] { background: #4d7c0f; }   /* 自媒体  橄榄绿 */
+.fl-tag.dom[data-dom="invest"]  { background: #b45309; }   /* 投资    琥珀棕 */
+.fl-tag.dom[data-dom="web3"]    { background: #7c3aed; }   /* Web3    紫 */
+.fl-tag.dom[data-dom="product"] { background: #db2777; }   /* 产品    粉 */
+.fl-tag.dom[data-dom="life"]    { background: #64748b; }   /* 成长    石板灰 */
+.fl-tag.dom[data-dom="ai"]      { background: #334155; }   /* 泛 AI   深灰 */
 .fl-tag.rel  { background: rgba(120, 86, 255, 0.15); color: rgb(120, 86, 255); }
 
 /* 推文流速(底部操作栏) */

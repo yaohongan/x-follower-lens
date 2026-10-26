@@ -200,6 +200,16 @@
         const el = document.createElement("span");
         el.className = "fl-tag " + t.cls;
         el.textContent = t.text;
+        if (t.dom) {
+          el.dataset.dom = t.dom;
+          // 自定义方向没有预设颜色:按名字算一个固定的色相(同一个名字永远同一个颜色)
+          if (t.dom.startsWith("custom")) {
+            let h = 0;
+            for (const ch of t.text) h = (h * 31 + ch.charCodeAt(0)) % 360;
+            el.style.background = `hsl(${h}, 62%, 40%)`;
+            el.style.color = "#fff";
+          }
+        }
         wrap.append(el);
       }
     }

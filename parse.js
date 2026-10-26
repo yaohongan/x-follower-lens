@@ -122,7 +122,7 @@
       if (user.followedBy && user.iFollow) out.push({ key: "relation", text: "互关", cls: "rel" });
       else if (user.followedBy) out.push({ key: "relation", text: "关注了你", cls: "rel" });
     }
-    if (on.domain && extra && extra.domain) out.push({ key: "domain", text: extra.domain.name, cls: "dom" });
+    if (on.domain && extra && extra.domain) out.push({ key: "domain", text: extra.domain.name, cls: "dom", dom: extra.domain.key });
     if (on.bigV && followers >= 10000 && ratio >= 10) out.push({ key: "bigV", text: "大V", cls: "hi" });
     if (on.farm && following >= 1000 && ratio > 0.8 && ratio < 1.25 && followers < 5000)
       out.push({ key: "farm", text: "疑似互粉号", cls: "warn" });
