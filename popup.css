@@ -55,3 +55,5 @@ footer a { color: var(--accent); text-decoration: none; }
 .seg input { display: none; }
 .seg span { display: block; text-align: center; padding: 5px 0; cursor: pointer; color: var(--muted); user-select: none; transition: all .12s; }
 .seg input:checked + span { background: var(--accent); color: #fff; }
+textarea { width: 100%; resize: vertical; font: 12.5px/1.5 ui-monospace, Menlo, monospace; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+textarea:focus { outline: none; border-color: var(--accent); }

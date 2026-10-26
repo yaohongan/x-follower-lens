@@ -2,6 +2,7 @@
   const P = window.FollowerLensParse;
   const SETTINGS_KEY = "fl_settings";
   const HIST_KEY = "fl_hist";
+  const DOM_KEY = "fl_dom";
   const HIST_MAX_USERS = 3000;
   const HIST_MAX_POINTS = 40;
   const HIST_MIN_GAP = 6 * 3600e3;
@@ -13,6 +14,8 @@
   let settings = null;          // 读完存储后才渲染
   let settingsVer = 0;
   let hist = {};
+  const domScores = new Map();   // handle -> { n: 命中总数, ts: 最后更新时间, s: { 方向key: 命中的推文条数 } }
+  let domDirty = false;
   let histDirty = false;
   let msgCount = 0;
   const pending = [];           // 设置读完之前收到的数据包
@@ -22,15 +25,18 @@
 
   function init() {
     if (!storage) { settings = P.mergeSettings(); flush(); return; }
-    storage.get([SETTINGS_KEY, HIST_KEY], (res) => {
+    storage.get([SETTINGS_KEY, HIST_KEY, DOM_KEY], (res) => {
       settings = P.mergeSettings(res && res[SETTINGS_KEY]);
       hist = (res && res[HIST_KEY]) || {};
+      const saved = (res && res[DOM_KEY]) || {};
+      for (const h in saved) domScores.set(h, { ts: saved[h][0], s: saved[h][1], n: Object.values(saved[h][1]).reduce((a, b) => a + b, 0) });
       applyDebug();
       flush();
     });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local") return;
       if (changes[HIST_KEY] && changes[HIST_KEY].newValue === undefined) hist = {};  // 弹窗里清除了记录
+      if (changes[DOM_KEY] && changes[DOM_KEY].newValue === undefined) { domScores.clear(); scheduleRender(); }
       if (!changes[SETTINGS_KEY]) return;
       settings = P.mergeSettings(changes[SETTINGS_KEY].newValue);
       settingsVer++;
@@ -59,16 +65,26 @@
     if (!storage || saveTimer) return;
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      if (!histDirty) return;
-      histDirty = false;
-      const handles = Object.keys(hist);
-      if (handles.length > HIST_MAX_USERS) {
-        handles
-          .sort((a, b) => hist[a][hist[a].length - 1][0] - hist[b][hist[b].length - 1][0])
-          .slice(0, handles.length - HIST_MAX_USERS)
-          .forEach((h) => delete hist[h]);
+      const out = {};
+      if (histDirty) {
+        histDirty = false;
+        const handles = Object.keys(hist);
+        if (handles.length > HIST_MAX_USERS) {
+          handles
+            .sort((a, b) => hist[a][hist[a].length - 1][0] - hist[b][hist[b].length - 1][0])
+            .slice(0, handles.length - HIST_MAX_USERS)
+            .forEach((h) => delete hist[h]);
+        }
+        out[HIST_KEY] = hist;
       }
-      try { storage.set({ [HIST_KEY]: hist }); } catch (_) {}
+      if (domDirty) {
+        domDirty = false;
+        const rows = [...domScores.entries()].sort((a, b) => b[1].ts - a[1].ts).slice(0, HIST_MAX_USERS);
+        const obj = {};
+        for (const [h, v] of rows) obj[h] = [v.ts, v.s];
+        out[DOM_KEY] = obj;
+      }
+      if (Object.keys(out).length) { try { storage.set(out); } catch (_) {} }
     }, 3000);
   }
 
@@ -101,12 +117,21 @@
       tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author, obs });
       if (tweetSeen.has(t.id)) continue;
       tweetSeen.add(t.id);
+      if (t.text && settings.tags.domain) {
+        const keys = P.tweetDomains(t.text, settings.customDomains);
+        if (keys.length) {
+          const d = domScores.get(t.author) || { n: 0, ts: 0, s: {} };
+          for (const k of keys) d.s[k] = (d.s[k] || 0) + 1;
+          d.n += keys.length; d.ts = Date.now();
+          domScores.set(t.author, d); domDirty = true;
+        }
+      }
       const s = stats.get(t.author) || { views: 0, interactions: 0 };
       s.views += t.views;
       s.interactions += t.interactions;
       stats.set(t.author, s);
     }
-    if (histDirty) scheduleSave();
+    if (histDirty || domDirty) scheduleSave();
   }
 
   // ---------- 渲染 ----------
@@ -122,7 +147,8 @@
     const u = users.get(handle);
     if (!u) return null;
     const stat = stats.get(handle);
-    const list = P.tags(u, stat, Date.now(), settings);
+    const doms = settings.tags.domain ? P.pickDomains(u.bio, (domScores.get(handle) || {}).s, settings.customDomains) : [];
+    const list = P.tags(u, stat, Date.now(), settings, { domain: doms[0] || null });
 
     const wrap = document.createElement("span");
     wrap.className = "fl-badge";
@@ -160,7 +186,8 @@
 
   function sigOf(handle, compact) {
     const u = users.get(handle), s = stats.get(handle);
-    return [u.followers, s ? s.views : 0, u.followedBy, u.iFollow, settingsVer, compact ? 1 : 0].join("|");
+    const d = domScores.get(handle);
+    return [u.followers, s ? s.views : 0, u.followedBy, u.iFollow, settingsVer, compact ? 1 : 0, d ? d.n : 0].join("|");
   }
 
   // ----- 推文头部:行内 / 单独一行 / 自动 -----
@@ -466,6 +493,10 @@
       } else {
         rows.push(["变化", `<span class="dim">已开始记录,明天起显示</span>`]);
       }
+    }
+    if (settings.tags.domain) {
+      const doms = P.pickDomains(u.bio, (domScores.get(handle) || {}).s, settings.customDomains).slice(0, 2);
+      rows.push(["内容方向", doms.length ? doms.map((x) => x.name).join(" · ") : `<span class="dim">还看不出来(多刷几条 TA 的推文)</span>`]);
     }
     const rel = u.followedBy && u.iFollow ? "互相关注" : u.followedBy ? "TA 关注了你" : u.iFollow ? "你关注了 TA" : "";
     if (rel) rows.push(["关系", rel]);

@@ -1,10 +1,12 @@
 (() => {
   const KEY = "fl_settings";
   const HIST_KEY = "fl_hist";
+  const DOM_KEY = "fl_dom";
   const DEFAULTS = {
     enabled: true, showRatio: false, tierColors: true, hoverCard: true,
     trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, flowMode: "abs", flowPos: "corner", layout: "auto", maxTags: 3, debug: false,
-    tags: { relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
+    customDomains: "",
+    tags: { domain: true, relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
   };
   let settings = null;
 
@@ -17,6 +19,8 @@
     document.querySelectorAll('input[type="checkbox"][data-key]').forEach((el) => { el.checked = !!settings[el.dataset.key]; });
     document.querySelectorAll('input[type="radio"][data-key]').forEach((el) => { el.checked = String(settings[el.dataset.key]) === el.value; });
     document.querySelectorAll("input[data-tag]").forEach((el) => { el.checked = !!settings.tags[el.dataset.tag]; });
+    const ta = document.getElementById("customDomains");
+    if (document.activeElement !== ta) ta.value = settings.customDomains || "";
     document.getElementById("panel").classList.toggle("off", !settings.enabled);
   }
 
@@ -43,7 +47,13 @@
     save();
   });
 
+  let taTimer = null;
+  document.getElementById("customDomains").addEventListener("input", (e) => {
+    clearTimeout(taTimer);
+    taTimer = setTimeout(() => { if (settings) { settings.customDomains = e.target.value; save(); } }, 400);
+  });
+
   document.getElementById("clearHist").addEventListener("click", () => {
-    chrome.storage.local.remove(HIST_KEY, countHist);
+    chrome.storage.local.remove([HIST_KEY, DOM_KEY], countHist);
   });
 })();

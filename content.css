@@ -44,6 +44,7 @@
 }
 .fl-tag.hi   { background: rgba(0, 186, 124, 0.15);  color: rgb(0, 150, 100); }
 .fl-tag.warn { background: rgba(249, 24, 128, 0.12); color: rgb(220, 30, 110); }
+.fl-tag.dom  { background: rgba(14, 165, 233, 0.14); color: rgb(2, 132, 199); }
 .fl-tag.rel  { background: rgba(120, 86, 255, 0.15); color: rgb(120, 86, 255); }
 
 /* 推文流速(底部操作栏) */
