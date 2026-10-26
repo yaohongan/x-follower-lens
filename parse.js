@@ -12,6 +12,7 @@
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
+    flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
     flowPos: "corner",    // 流速位置:corner 固定在标题行右上角(盖住别的插件在同位置的标)/ auto 自动避让 / header 头部右侧 / bar 底部操作栏
     layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
     maxTags: 3,           // 徽标里最多显示几个标签(0 = 只显示粉丝数)

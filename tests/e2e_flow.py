@@ -12,7 +12,7 @@ def tweet(i,u,views,age): return {"__typename":"Tweet","rest_id":str(i),"views":
 # id, 账号, 粉丝, 浏览量, 发布几小时前, 头部整行宽度, 操作栏"浏览量"格宽度
 cases=[(1,"rocketguy",100,5000,2,518,111),(2,"turtleguy",100,20,2,518,111),(3,"oldguy",100,9999,30,518,111),
        (4,"bigacct",50000,900,2,518,111),(5,"narrowbar",100,5000,2,518,60),(6,"fresh",100,900,0.05,518,111),
-       (7,"squeezedheader",100,5000,2,300,111)]
+       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111)]
 data=json.dumps({"data":[tweet(i,user(h,f),v,a) for i,h,f,v,a,rw,w in cases]})
 # 复刻真实结构:头部整行(space-between) = [名字区 > 列 > User-Name] + [别的插件的小标] + [菜单区];底部操作栏第 4 格放浏览量链接
 def art(i,h,rw,w):
@@ -45,9 +45,23 @@ with sync_playwright() as p:
     check("角落:层级比对方高 1;底色不透明;对方元素原样还在(没删没改)",cv["z"]==cv["ovz"]+1 and cv["opaque"] and cv["ovStillThere"],cv)
     dflt=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[3].querySelector('.fl-flow');const cs=getComputedStyle(c);return {right:cs.right,top:cs.top}})()")
     check("没有别的插件时:用同一套坐标(距右 96px、距顶 10px)",dflt["right"]=="96px" and dflt["top"]=="10px",dflt)
+    # ---- 动效:只有 火箭/光速 两档 ----
+    fx=pg.evaluate("""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('.fl-flow');if(!c)return null;const cs=getComputedStyle(c);return {fx:c.classList.contains('fl-fx'),anim:cs.animationName,emoAnim:c.querySelector('.fl-emo')?getComputedStyle(c.querySelector('.fl-emo')).animationName:null,color:cs.color,cls:c.className}})""")
+    check("火箭(第1条)有动效 class 与流动动画",fx[0] and fx[0]["fx"] and "fl-slide" in fx[0]["anim"] and "fl-glow-warm" in fx[0]["anim"],fx[0])
+    check("光速(第8条)有霓虹动画 + 图标闪烁",fx[7] and fx[7]["fx"] and "fl-glow-neon" in fx[7]["anim"] and "fl-flicker" in (fx[7]["emoAnim"] or ""),fx[7])
+    check("火箭图标喷射抖动",fx[0] and "fl-thrust" in (fx[0]["emoAnim"] or ""))
+    check("小电驴及更慢的档位:没有动效",all(x is None or not x["fx"] for i,x in enumerate(fx) if i in (1,3)) and fx[3]["anim"]=="none",[fx[1],fx[3]])
+    pg.emulate_media(reduced_motion="reduce"); pg.wait_for_timeout(400)
+    rm=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[0].querySelector('.fl-flow');return {a:getComputedStyle(c).animationName,e:getComputedStyle(c.querySelector('.fl-emo')).animationName,after:getComputedStyle(c,'::after').display}})()")
+    check("系统开了\"减少动态效果\":动画全部关闭,保留配色",rm["a"]=="none" and rm["e"]=="none" and rm["after"]=="none",rm)
+    pg.emulate_media(reduced_motion="no-preference")
+    pg.screenshot(path="shot_fx.png")
     # ---- 切到 自动 ----
     pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
     check("弹窗:位置默认 角落",pop0.evaluate("document.querySelector('input[data-key=flowPos]:checked').value")=="corner")
+    pop0.click('input[data-key=flowFx]'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1000)
+    check("关闭流速动效:火箭/光速不再带动效 class",pg.evaluate("document.querySelectorAll('.fl-fx').length")==0)
+    pop0.bring_to_front(); pop0.click('input[data-key=flowFx]'); pop0.wait_for_timeout(300)
     pop0.click('input[data-key=flowPos][value=auto] + span'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     s=pg.evaluate(chips)
     check("自动:头部右侧没被占的推文放头部(菜单区左边)",s[3] and s[3]["inHeader"] and not s[3]["inBar"] and not s[3]["inCorner"])

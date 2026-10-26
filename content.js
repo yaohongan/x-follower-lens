@@ -295,6 +295,15 @@
     for (const k in want) if (st[k] !== want[k]) st[k] = want[k];
   }
 
+  // 图标单独包一层(动效要让图标单独抖动),其余是文字
+  function setChip(chip, text, emoji) {
+    chip.textContent = "";
+    const e = document.createElement("span");
+    e.className = "fl-emo";
+    e.textContent = emoji;
+    chip.append(e, document.createTextNode(text.slice(emoji.length)));
+  }
+
   const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h.toFixed(1) + " 小时");
 
   function decorateFlow(article) {
@@ -332,7 +341,7 @@
 
     const rate = `${P.fmtRate(flow.rate)}/h`;
     const chip = document.createElement("span");
-    chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "");
+    chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
     chip.dataset.flSig = sig;
     const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
       `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)})`];
@@ -350,23 +359,23 @@
       // 从详细到简略,选不压住名字和 @ID 的最详细一档
       const cr = contentRight(un);
       let fitted = false;
-      for (const t of levels) { chip.textContent = t; placeCorner(chip, article, row); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
+      for (const t of levels) { setChip(chip, t, flow.emoji); placeCorner(chip, article, row); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
       // 连图标都会压住名字:改放到底部浏览量旁
       if (!fitted && cell) {
         chip.remove(); chip.classList.remove("fl-flow-c"); chip.removeAttribute("style"); chip.dataset.flSig = sig.replace(/\|c$/, "|b");
         cell.append(chip);
-        for (const t of levels.slice(1)) { chip.textContent = t; if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+        for (const t of levels.slice(1)) { setChip(chip, t, flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       }
     } else if (inHeader) {
       // 先撤下这条推文已有的粉丝徽标,等流速标就位后,render 会按"放得下行内、放不下换行"重新放
       const rec = placed.get(un);
       if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); placed.delete(un); }
       menu.before(chip);
-      for (const t of levels) { chip.textContent = t; if (!crowded(un, chip)) break; }
+      for (const t of levels) { setChip(chip, t, flow.emoji); if (!crowded(un, chip)) break; }
       if (mode === "header") avoidOverlays(chip, article, row, menu);
     } else {
       cell.append(chip);
-      for (const t of levels) { chip.textContent = t; if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+      for (const t of levels) { setChip(chip, t, flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
     }
   }
 
