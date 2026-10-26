@@ -424,6 +424,19 @@
     el.addEventListener("mouseleave", hideTip);
   }
 
+  // 贴靠:流速标放在头部时,让它的右边缘紧贴右边图标组(Grok、菜单)。X 的头部图标是陆续渲染出来的,
+  // 所以放好之后还要再量几次;空白多了就往右推,被挤了就往回收。只改自己的 margin-left,不碰 X 的元素。
+  function snapRight(chip) {
+    if (!chip || !chip.isConnected || chip.dataset.flPlace === "b") return;
+    const nx = chip.nextElementSibling;
+    if (!nx) return;
+    const ic = nx.querySelector("button, [role=button], a, svg") || nx;
+    const gap = Math.round(ic.getBoundingClientRect().left - chip.getBoundingClientRect().right - 8);
+    if (Math.abs(gap) <= 4 || gap > 700) return;
+    const cur = parseFloat(chip.style.marginLeft) || 0;
+    chip.style.marginLeft = `${Math.max(0, cur + gap)}px`;
+  }
+
   function decorateFlow(article) {
     const old = article.querySelector(".fl-flow");
     const id = tweetIdOf(article);
@@ -450,6 +463,7 @@
       const node = old.lastChild;
       if (node && node.nodeType === 3) node.nodeValue = text.slice(flow.emoji.length);
       old.dataset.flSig0 = sig0;
+      snapRight(old);
       return;
     }
 
@@ -491,13 +505,7 @@
         levels = flowLevels("b", flow, rate, arrow);
         for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       } else if (mode === "header" && !settings.hideForeign) avoidOverlays(chip, article, row, menu);
-      // 兜底:标和右边图标组之间如果还空着一大段(X 的头部布局各页不一样),把空白全部放到标的左边,让它贴着图标组
-      if (fitted && chip.isConnected && chip.nextElementSibling) {
-        const nx = chip.nextElementSibling;
-        const ic = nx.querySelector("button, [role=button], a, svg") || nx;
-        const gap = ic.getBoundingClientRect().left - chip.getBoundingClientRect().right - 8;
-        if (gap > 16 && gap < 600) chip.style.marginLeft = `${Math.round(gap)}px`;
-      }
+      snapRight(chip);
     } else {
       cell.append(chip);
       for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
@@ -514,6 +522,7 @@
         const un2 = article.querySelector('[data-testid="User-Name"]');
         const row2 = un2 && headerRow(un2);
         if (!row2) return;
+        snapRight(c2);
         const pl = c2.dataset.flPlace, md = settings.flowPos;
         if (pl === "h" && md === "header" && !settings.hideForeign) { avoidOverlays(c2, article, row2, row2.lastElementChild); return; }
         if (md === "auto" && !settings.hideForeign) {
@@ -523,6 +532,7 @@
       };
       setTimeout(recheck, 1500);
       setTimeout(recheck, 4000);
+      setTimeout(recheck, 9000);
     }
   }
 
@@ -555,7 +565,7 @@
 
   function buildAvatarFx(container, tier, round, article) {
     if (round) {
-      const w = mk(`fl-avx ax${tier}`);
+      const w = mk(`fl-avx ax${tier}` + (settings.avatarSpin ? " spin" : ""));
       const orbit = mk("fl-orbit"); orbit.append(mk("fl-orbit-i", AV_EMOJI[tier])); w.append(orbit);
       container.append(w);
     }
@@ -572,7 +582,7 @@
     if (!container) return;
     const tier = flowTier.get(article);
     const want = settings.avatarFx && tier >= 0 ? tier : -1;   // 每一档都有(慢档低调,快档华丽);只有没有流速标的推文没有
-    const sig = String(want);
+    const sig = `${want}|${settings.avatarSpin ? 1 : 0}`;
     const ring = container.querySelector(":scope > .fl-ring");
     if (want < 0) { if (ring) removeAvatarFx(container); return; }
     if (ring && ring.dataset.flTier === sig) {
@@ -588,7 +598,7 @@
     const shape = roundness(container);               // 读不到就按圆形(绝大多数是个人头像),稍后补判
     const round = shape !== false;
     if (ring) removeAvatarFx(container);
-    const el = mk(`fl-ring r${want}` + (round ? " round" : " square"));
+    const el = mk(`fl-ring r${want}` + (settings.avatarSpin ? " spin" : "") + (round ? " round" : " square"));
     el.dataset.flTier = sig;
     el.dataset.flShape = shape === null ? "?" : round ? "r" : "s";
     container.append(el);
@@ -787,7 +797,7 @@
   function updateHud() {
     if (!hud) return;
     const shown = document.querySelectorAll(".fl-badge").length;
-    const text = `FL 数据包:${msgCount} 用户:${users.size} 已显示:${shown} 插件累计耗时:${Math.round(perf.handleMs + perf.renderMs + perf.mutMs)}ms`;
+    const text = `FL v${(chrome.runtime.getManifest && chrome.runtime.getManifest().version) || "?"} 数据包:${msgCount} 用户:${users.size} 已显示:${shown} 插件累计耗时:${Math.round(perf.handleMs + perf.renderMs + perf.mutMs)}ms`;
     if (hud.textContent !== text) hud.textContent = text;
   }
 

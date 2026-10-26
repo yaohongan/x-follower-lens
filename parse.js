@@ -13,6 +13,7 @@
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
     cardBtn: true,        // 个人主页上显示「生成名片」按钮
+    avatarSpin: false,    // 头像环转起来(默认静态,不晃眼)
     avatarFx: true,       // 头像特效:按这条推文的流速,给作者头像加圈和小角色
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
     hideForeign: true,    // 有我们的流速标时,把别的插件的流速标隐藏掉(换成我们的,不再重复、也不会遮挡时间)

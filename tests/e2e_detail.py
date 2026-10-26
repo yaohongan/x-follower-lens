@@ -13,13 +13,18 @@ ART='''<article data-testid="tweet" style="position:relative;width:560px;padding
 <div role="group" style="display:flex"><div style="display:flex;width:300px"><a role="link" href="/yihui/status/7/analytics">4940</a></div></div></div></div></article>'''
 def mk(menu): return '<!doctype html><html><body style="margin:0"><div id=r></div><script>addEventListener("load",function(){document.getElementById("r").innerHTML='+json.dumps(ART.replace('MENUSTYLE',menu))+';var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/TweetDetail");x.send()});</script></body></html>'
 ok=True
-VARIANTS={"图标组带 margin-left:auto":"margin-left:auto;","图标组 flex:1 撑满剩余空白、内容右对齐(真实页面的情形)":"flex:1;justify-content:flex-end;"}
+VARIANTS={"图标组晚渲染(1.5 秒后才出现,先是空的)":"LATE","图标组带 margin-left:auto":"margin-left:auto;","图标组 flex:1 撑满剩余空白、内容右对齐(真实页面的情形)":"flex:1;justify-content:flex-end;"}
 with sync_playwright() as p:
     ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":700,"height":400})
     ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))
     for name,menu in VARIANTS.items():
-        pg=ctx.new_page(); body=mk(menu); pg.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=body))
-        pg.goto("https://x.com/home"); pg.wait_for_timeout(2500)
+        pg=ctx.new_page(); late=(menu=="LATE"); body=mk("flex:1;justify-content:flex-end;" if late else menu)
+        if late:
+            body=body.replace('<button style="width:30px">g</button><button style="width:30px">m</button>','')
+            js="setTimeout(function(){var m=document.querySelector('[data-testid=User-Name]').parentElement.parentElement.nextElementSibling;m.innerHTML='<button style=width:30px>g</button><button style=width:30px>m</button>'},1800)"
+            body=body.replace("</body>","<script>"+js+"</script></body>")
+        pg.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=body))
+        pg.goto("https://x.com/home"); pg.wait_for_timeout(2500 if not late else 6500)
         r=pg.evaluate("(()=>{const c=document.querySelector('.fl-flow');if(!c)return null;const m=c.nextElementSibling.getBoundingClientRect(),b=c.getBoundingClientRect(),u=document.querySelector('[data-testid=User-Name]').getBoundingClientRect(),mn=c.nextElementSibling;const btn=mn.querySelector('button').getBoundingClientRect();return {gapToIcons:Math.round(btn.left-b.right),place:c.dataset.flPlace}})()")
         good=r is not None and r["place"]=="h" and r["gapToIcons"]<=24
         print(("PASS " if good else "FAIL ")+"流速标靠右、贴着图标组:"+name,r); ok&=good
