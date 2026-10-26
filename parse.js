@@ -12,7 +12,8 @@
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
-    avatarFx: true,       // 头像光环:按这条推文的流速,给作者头像加一圈光环(🛵 以上)
+    avatarFx: true,       // 头像特效:按这条推文的流速,给作者头像加圈和小角色
+    avatarLevel: "standard", // 特效强度:quiet 安静 / standard 标准(默认,平时克制、悬停才展开)/ lively 热闹
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
     hideForeign: true,    // 有我们的流速标时,把别的插件的流速标隐藏掉(换成我们的,不再重复、也不会遮挡时间)
     flowPos: "corner",    // 流速位置:corner 替换(默认,排进标题行 + 隐藏别人的)/ header 头部(让到别人的左边)/ auto 自动 / bar 底部

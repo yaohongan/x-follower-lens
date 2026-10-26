@@ -34,7 +34,7 @@ ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)
 with sync_playwright() as p:
-    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,
+    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,
         args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":900,"height":700})
     CUR=[data]
     ctx.add_init_script("""window.__rm={};new MutationObserver(ms=>ms.forEach(m=>m.removedNodes.forEach(n=>{if(n.nodeType!==1)return;const hit=n.classList.contains('fl-flow')?n:(n.querySelector&&n.querySelector('.fl-flow'));if(!hit)return;const a=m.target.closest&&m.target.closest('article');const h=a?((a.querySelector('[data-testid=User-Name] a')||{}).textContent||'?'):'?';window.__rm[h]=(window.__rm[h]||0)+1}))).observe(document,{childList:true,subtree:true});""")

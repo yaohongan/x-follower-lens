@@ -1,4 +1,4 @@
-"""头像光环测试:默认开、按流速档位、圆/方头像、角标、动画、关闭、减少动态效果。
+"""头像光环测试(热闹档,完整特效结构;安静/标准档见 e2e_avatar_levels.py):默认开、按流速档位、圆/方头像、角标、动画、关闭、减少动态效果。
 运行:python3 tests/e2e_avatar.py"""
 import json, tempfile, time, hashlib, os
 from playwright.sync_api import sync_playwright
@@ -19,9 +19,11 @@ ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)
 with sync_playwright() as p:
-    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":700,"height":800})
+    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":700,"height":800})
     ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML))
+    pre=ctx.new_page(); pre.goto(f"chrome-extension://{eid}/popup.html"); pre.wait_for_timeout(500)
+    pre.evaluate("new Promise(r=>chrome.storage.local.set({fl_settings:{avatarLevel:'lively'}},r))"); pre.close()
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("https://x.com/home"); pg.wait_for_timeout(2500)
     rings="""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('[data-testid^=UserAvatar-Container-]');const r=c.querySelector(':scope > .fl-ring');const b=c.querySelector(':scope > .fl-ring-badge');return r?{cls:r.className,anim:getComputedStyle(r).animationName,badge:b?b.textContent:null,n:c.querySelectorAll('.fl-ring').length}:null})"""

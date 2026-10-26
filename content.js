@@ -546,25 +546,43 @@
     container.querySelectorAll(":scope > .fl-ring, :scope > .fl-ring-badge, :scope > .fl-avx").forEach((n) => n.remove());
   }
 
-  function buildAvatarFx(container, tier, round, article) {
-    const w = mk(`fl-avx ax${tier} ${round ? "round" : "square"}`);
-    w.style.setProperty("--fl-bg", pageBg());                       // 小角色垫的圆底用页面底色,任何背景上都看得清
-    if (tier >= 2) w.append(mk("fl-glow"));                          // 脉冲的光晕(只用 opacity)
-    if (round) {
-      // 小角色身后跟两个越来越淡的"残影"(同一条轨道、相位错开),有"在飞/在骑"的速度感。慢档(🐢)不拖尾
-      for (const g of tier >= 1 ? ["g2", "g1"] : []) {
-        const o = mk(`fl-orbit ${g}`);
-        o.append(mk("fl-orbit-i", AV_EMOJI[tier]));
-        w.append(o);
+  // 三档特效强度(设置里"特效强度"):
+  //   安静:只有一圈和一个很小的静态图标,不动
+  //   标准(默认):平时克制 —— 🐢 头顶飘 💤、🚲 🛵 一个小图标(🛵 带一缕尾气)、🚀 ⚡ 一个小角色绕圈 + 一两颗星/火花;
+  //               鼠标放到头像上才展开残影、光晕、冲击波这些"大特效"(平时隐藏、动画暂停)
+  //   热闹:全部一直开着(圆底小角色、残影、光晕、冲击波)
+  function buildAvatarFx(container, tier, round, article, level) {
+    const w = mk(`fl-avx ax${tier} lv-${level} ${round ? "round" : "square"}`);
+    w.style.setProperty("--fl-bg", pageBg());                       // 圆底用页面底色,任何背景上都看得清
+    const E = AV_EMOJI[tier];
+    const hot = (el) => { el.classList.add("fl-hot"); return el; };   // 标准档里"平时隐藏、悬停才出现"
+    if (level === "lively") {
+      if (tier >= 2) w.append(mk("fl-glow"));
+      if (round) {
+        for (const g of tier >= 1 ? ["g2", "g1"] : []) { const o = mk(`fl-orbit ${g}`); o.append(mk("fl-orbit-i", E)); w.append(o); }
+        const orbit = mk("fl-orbit"); orbit.append(mk("fl-orbit-i", E)); w.append(orbit);
+        if (tier === 4) { w.append(mk("fl-ring2")); w.append(mk("fl-wave")); w.append(mk("fl-wave w2")); }
       }
-      const orbit = mk("fl-orbit");
-      orbit.append(mk("fl-orbit-i", AV_EMOJI[tier]));              // 小角色:乌龟 / 自行车 / 小电驴 / 火箭 / 闪电
-      w.append(orbit);
-      if (tier === 4) { w.append(mk("fl-ring2")); w.append(mk("fl-wave")); w.append(mk("fl-wave w2")); }   // 光速:反向的内圈 + 两道错开的冲击波
+      if (tier >= 3) for (let k = 0; k < (tier === 4 ? 4 : 3); k++) w.append(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨"));
+    } else if (round) {
+      if (level === "quiet") {
+        w.append(mk("fl-pin", E));
+      } else {
+        if (tier === 0) w.append(mk("fl-zzz", "💤"));
+        else if (tier <= 2) { w.append(mk("fl-pin", E)); if (tier === 2) w.append(mk("fl-puff", "💨")); }
+        else {
+          const orbit = mk("fl-orbit"); orbit.append(mk("fl-orbit-i", E)); w.append(orbit);
+          w.append(mk("fl-sp s0", tier === 4 ? "⚡" : "✨"));
+          if (tier === 4) w.append(mk("fl-sp s1", "⚡"));
+          for (const g of ["g2", "g1"]) { const o = hot(mk(`fl-orbit ${g}`)); o.append(mk("fl-orbit-i", E)); w.append(o); }   // 悬停才有的残影
+          for (let k = tier === 4 ? 2 : 1; k < (tier === 4 ? 4 : 3); k++) w.append(hot(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨")));
+        }
+        if (tier >= 2) w.append(hot(mk("fl-glow")));                                   // 悬停才有的光晕
+        if (tier === 4) { w.append(hot(mk("fl-ring2"))); w.append(hot(mk("fl-wave"))); w.append(hot(mk("fl-wave w2"))); }
+      }
     }
-    if (tier >= 3) for (let k = 0; k < (tier === 4 ? 4 : 3); k++) w.append(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨"));   // 星星 / 火花
     container.append(w);
-    // 鼠标放到头像(含它外面绕圈的小图标)上,立刻显示这条推文的流速信息
+    // 鼠标放到头像(含它外面的小图标)上,立刻显示这条推文的流速信息
     if (!container.dataset.flHover) {
       container.dataset.flHover = "1";
       container.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(container, flowCardHtml(d)); });
@@ -577,9 +595,11 @@
     if (!container) return;
     const tier = flowTier.get(article);
     const want = settings.avatarFx && tier >= 0 ? tier : -1;   // 每一档都有(慢档低调,快档华丽);只有没有流速标的推文没有
+    const level = ["quiet", "standard", "lively"].includes(settings.avatarLevel) ? settings.avatarLevel : "standard";
+    const sig = `${want}|${level}`;
     const ring = container.querySelector(":scope > .fl-ring");
     if (want < 0) { if (ring) removeAvatarFx(container); return; }
-    if (ring && ring.dataset.flTier === String(want)) {
+    if (ring && ring.dataset.flTier === sig) {
       // 稳态快路径。只有"形状还没读到"的,在前几次渲染里补判一次(之后不再读样式)
       if (ring.dataset.flShape === "?" && (+ring.dataset.flChecks || 0) < 4) {
         ring.dataset.flChecks = String((+ring.dataset.flChecks || 0) + 1);
@@ -592,13 +612,13 @@
     const shape = roundness(container);               // 读不到就按圆形(绝大多数是个人头像),稍后补判
     const round = shape !== false;
     if (ring) removeAvatarFx(container);
-    const el = mk(`fl-ring r${want}` + (round ? " round" : " square"));
-    el.dataset.flTier = String(want);
+    const el = mk(`fl-ring r${want} lv-${level}` + (round ? " round" : " square"));
+    el.dataset.flTier = sig;
     el.dataset.flShape = shape === null ? "?" : round ? "r" : "s";
     container.append(el);
     // 角标只给方形头像(它不绕圈);圆形头像已经有绕圈的小角色,再放角标就是两只火箭了
     if (want >= 3 && !round) container.append(mk("fl-ring-badge", want === 4 ? "⚡" : "🚀"));
-    buildAvatarFx(container, want, round, article);
+    buildAvatarFx(container, want, round, article, level);
   }
 
   function cleanup() {

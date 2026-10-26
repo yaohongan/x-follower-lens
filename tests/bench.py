@@ -40,7 +40,7 @@ def run():
     with sync_playwright() as p:
         args=["--no-first-run"]
         if EXT!="none": args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"]
-        ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,args=args,viewport={"width":900,"height":900})
+        ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,args=args,viewport={"width":900,"height":900})
         ctx.add_init_script(INIT)
         def api(r):
             op=re.search(r"/graphql/[^/]+/([^?]+)",r.request.url).group(1); r.fulfill(status=200,content_type="application/json",body=CACHE[op])

@@ -17,7 +17,7 @@ ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)
 with sync_playwright() as p:
-    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":700,"height":700})
+    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":700,"height":700})
     ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML))
     pg=ctx.new_page(); pg.goto("https://x.com/home"); pg.wait_for_timeout(2500)

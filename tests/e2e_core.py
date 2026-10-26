@@ -20,7 +20,7 @@ def check(n,c,e=""):
 _r=subprocess.run(["node",os.path.join(EXT,"tests","check_syntax.js")],capture_output=True,text=True)
 check("所有脚本按浏览器规则编译通过",_r.returncode==0,_r.stdout.strip().replace("\n"," | "))
 with sync_playwright() as p:
-    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":900,"height":600})
+    ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":900,"height":600})
     ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML))
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
