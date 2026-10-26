@@ -26,10 +26,11 @@
     <section>
       <h2>流速</h2>
       <label class="row"><span>推文流速标注<small>按每小时浏览量标出:龟速 🐢 自行车 🚲 小电驴 🛵 火箭 🚀 光速 ⚡,带 ↗ ↘ 趋势</small></span><span class="sw"><input type="checkbox" data-key="flow"><i></i></span></label>
-      <div class="row nohover"><span>显示位置<small>自动:头部右侧被别的插件占着时放到底部,两个插件互不打架</small></span></div>
+      <div class="row nohover"><span>显示位置<small>角落:固定在标题行右上角,会盖住别的插件在同一位置的标;自动:不盖别人,被占了就放底部</small></span></div>
       <div class="seg">
+        <label><input type="radio" name="flowPos" data-key="flowPos" value="corner"><span>角落</span></label>
         <label><input type="radio" name="flowPos" data-key="flowPos" value="auto"><span>自动</span></label>
-        <label><input type="radio" name="flowPos" data-key="flowPos" value="header"><span>头部右侧</span></label>
+        <label><input type="radio" name="flowPos" data-key="flowPos" value="header"><span>头部</span></label>
         <label><input type="radio" name="flowPos" data-key="flowPos" value="bar"><span>底部</span></label>
       </div>
       <div class="row nohover"><span>计算口径<small>相对:按粉丝量折算,小号的爆款也能显示"火箭"</small></span></div>

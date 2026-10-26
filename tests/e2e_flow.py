@@ -34,9 +34,23 @@ with sync_playwright() as p:
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("https://x.com/home"); pg.wait_for_timeout(2500)
     chips="""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('.fl-flow');if(!c)return null;const un=a.querySelector('[data-testid=User-Name]');const row=un.parentElement.parentElement.parentElement;const bar=a.querySelector('[role=group] a[href$="/analytics"]').parentElement;
-      return {t:c.textContent.trim(),title:c.title.replace(/\\n/g,' / '),inHeader:c.parentElement===row&&c.nextElementSibling===row.lastElementChild,inBar:c.parentElement===bar,barOverflow:bar.scrollWidth>bar.clientWidth+1,cnt:a.querySelectorAll('.fl-flow').length}})"""
+      return {t:c.textContent.trim(),title:c.title.replace(/\\n/g,' / '),inHeader:c.parentElement===row&&c.nextElementSibling===row.lastElementChild,inBar:c.parentElement===bar,inCorner:c.parentElement===a&&c.classList.contains('fl-flow-c'),barOverflow:bar.scrollWidth>bar.clientWidth+1,cnt:a.querySelectorAll('.fl-flow').length}})"""
     s=pg.evaluate(chips); print(json.dumps(s,ensure_ascii=False)[:600])
-    check("自动:头部右侧没被占的推文放头部(菜单区左边)",s[3] and s[3]["inHeader"] and not s[3]["inBar"])
+    # ---- 默认:角落(盖住别的插件同位置的标)----
+    check("默认:角落(挂在 article 下的绝对定位)",s[0] and s[0]["inCorner"] and s[3] and s[3]["inCorner"],[(x or {}).get("inCorner") for x in s])
+    cv=pg.evaluate("""(()=>{const a=document.querySelector('article');const o=a.querySelector('.sopilot-x-velocity-host');const c=a.querySelector('.fl-flow');
+      const or=o.getBoundingClientRect(), cr=c.getBoundingClientRect(), cs=getComputedStyle(c);
+      return {covers:cr.left<=or.left+1&&cr.right>=or.right-1&&cr.top<=or.top+1&&cr.bottom>=or.bottom-1, z:+cs.zIndex, ovz:+getComputedStyle(o).zIndex, opaque:cs.backgroundImage.includes('gradient')&&!!c.style.getPropertyValue('--fl-bg'), right:cs.right, top:cs.top, ovStillThere:!!o&&o.textContent==='548/h'}})()""")
+    check("角落:把别的插件的标完整盖住(位置、尺寸都覆盖)",cv["covers"],cv)
+    check("角落:层级比对方高 1;底色不透明;对方元素原样还在(没删没改)",cv["z"]==cv["ovz"]+1 and cv["opaque"] and cv["ovStillThere"],cv)
+    dflt=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[3].querySelector('.fl-flow');const cs=getComputedStyle(c);return {right:cs.right,top:cs.top}})()")
+    check("没有别的插件时:用同一套坐标(距右 96px、距顶 10px)",dflt["right"]=="96px" and dflt["top"]=="10px",dflt)
+    # ---- 切到 自动 ----
+    pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
+    check("弹窗:位置默认 角落",pop0.evaluate("document.querySelector('input[data-key=flowPos]:checked').value")=="corner")
+    pop0.click('input[data-key=flowPos][value=auto] + span'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
+    s=pg.evaluate(chips)
+    check("自动:头部右侧没被占的推文放头部(菜单区左边)",s[3] and s[3]["inHeader"] and not s[3]["inBar"] and not s[3]["inCorner"])
     check("自动:头部右侧被别的插件浮层占着的推文,改放底部浏览量旁",s[0] and s[0]["inBar"] and not s[0]["inHeader"],(s[0] or {}).get("t"))
     check("5000次/2h=火箭(底部:图标+数字,放不下就只留图标)",s[0] and "🚀" in s[0]["t"],s[0] and s[0]["t"])
     check("20次/2h=龟速",s[1] and "龟速" in s[1]["t"])
@@ -44,7 +58,6 @@ with sync_playwright() as p:
     check("900次/2h(粉丝5万,绝对)=小电驴;头部放得下时:名称+数字",s[3] and "小电驴" in s[3]["t"] and "/h" in s[3]["t"],s[3] and s[3]["t"])
     check("发布不足 15 分钟:不显示",s[5] is None)
     check("每条推文只有一个流速标",all(x["cnt"]==1 for x in s if x))
-    pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
     pop0.click('input[data-key=flowPos][value=header] + span'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     ov=pg.evaluate("""(()=>{const a=document.querySelector('article');const o=a.querySelector('.sopilot-x-velocity-host').getBoundingClientRect();
       const chip=a.querySelector('.fl-flow');const c=chip.getBoundingClientRect();const mn=chip.nextElementSibling.getBoundingClientRect();
@@ -54,8 +67,7 @@ with sync_playwright() as p:
     check("头部挤的时候逐级缩短(最终只留图标)",s[6] and "火箭" not in s[6]["t"],s[6] and s[6]["t"])
     pg.screenshot(path="shot_flow_header.png")
     pop=pop0
-    pop.click('input[data-key=flowPos][value=auto] + span'); pop.wait_for_timeout(300)
-    check("弹窗:位置选项含 自动/头部/底部",pop.evaluate("[...document.querySelectorAll('input[data-key=flowPos]')].map(i=>i.value).join()")=="auto,header,bar")
+    check("弹窗:位置选项含 角落/自动/头部/底部",pop.evaluate("[...document.querySelectorAll('input[data-key=flowPos]')].map(i=>i.value).join()")=="corner,auto,header,bar")
     pop.click('input[data-key=flowPos][value=bar] + span'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     s=pg.evaluate(chips)
     check("切到底部:全部在浏览量那一格,头部没有",all(x["inBar"] and not x["inHeader"] and x["cnt"]==1 for x in s if x))

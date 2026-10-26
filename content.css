@@ -65,6 +65,14 @@
 .fl-flow.f3 { background: rgba(255, 159, 10, 0.18);  color: rgb(214, 126, 0); }
 .fl-flow.f4 { background: linear-gradient(135deg, rgba(249, 24, 128, 0.18), rgba(255, 159, 10, 0.2)); color: rgb(226, 22, 116); }
 
+/* 角落:绝对定位,底色不透明(把别的插件同位置的标完整盖住);--fl-bg 是页面底色 */
+.fl-flow.fl-flow-c { margin: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.fl-flow-c.f0 { background: linear-gradient(rgba(113,118,123,.16), rgba(113,118,123,.16)), var(--fl-bg, #fff); }
+.fl-flow-c.f1 { background: linear-gradient(rgba(29,155,240,.13), rgba(29,155,240,.13)), var(--fl-bg, #fff); }
+.fl-flow-c.f2 { background: linear-gradient(rgba(0,186,124,.15), rgba(0,186,124,.15)), var(--fl-bg, #fff); }
+.fl-flow-c.f3 { background: linear-gradient(rgba(255,159,10,.18), rgba(255,159,10,.18)), var(--fl-bg, #fff); }
+.fl-flow-c.f4 { background: linear-gradient(135deg, rgba(249,24,128,.18), rgba(255,159,10,.2)), var(--fl-bg, #fff); }
+
 /* 头部右侧:靠右、紧挨菜单区(Grok 图标和"…") */
 .fl-flow.fl-flow-h { margin-left: auto; margin-right: 8px; }
 
