@@ -366,7 +366,9 @@
   // 只画在上面,不删不改对方的元素。我们的标是 article 里的绝对定位元素,所以坐标按 article 的边来算。
   function placeCorner(chip, article, foreign) {
     const ar = article.getBoundingClientRect(), r = foreign.getBoundingClientRect();
-    const right = Math.round(ar.right - r.right), top = Math.round(r.top - ar.top);
+    const ch = chip.getBoundingClientRect().height;                       // 我们的标比别人的高几 px,就让它垂直居中盖住
+    const dy = ch > r.height ? (ch - r.height) / 2 : 0;
+    const right = Math.round(ar.right - r.right), top = Math.round(r.top - ar.top - dy);
     const z = (parseInt(getComputedStyle(foreign).zIndex, 10) || 0) + 1;
     const st = chip.style;
     const want = { position: "absolute", right: right + "px", top: top + "px", zIndex: String(Math.max(z, 30)), minWidth: Math.round(r.width) + "px", minHeight: Math.round(r.height) + "px", textAlign: "center", boxSizing: "border-box" };

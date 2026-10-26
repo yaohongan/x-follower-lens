@@ -65,26 +65,28 @@
 .fl-flow {
   flex: none;
   margin-left: 6px;
-  padding: 2px 7px;
+  padding: 3px 10px;               /* 原 2px 7px:再大一小丢丢 */
   border-radius: 999px;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;                 /* 原 12px */
+  line-height: 18px;               /* 原 16px:整体高度约 24px */
   font-weight: 700;
   white-space: nowrap;
   cursor: default;
   align-self: center;
 }
-.fl-flow.f0 { background: rgba(113, 118, 123, 0.16); color: rgb(113, 118, 123); }
-.fl-flow.f1 { background: rgba(29, 155, 240, 0.13);  color: rgb(29, 155, 240); }
-.fl-flow.f2 { background: rgba(0, 186, 124, 0.15);   color: rgb(0, 160, 108); }
+.fl-flow .fl-emo { font-size: 15px; margin-right: 1px; }
+/* 低档(🐢 🚲 🛵)原来底色太淡、字太灰,不显眼:加深底色,再加一圈同色细边 */
+.fl-flow.f0 { background: rgba(113, 118, 123, 0.22); color: rgb(84, 90, 96);  box-shadow: inset 0 0 0 1px rgba(113, 118, 123, 0.45); }
+.fl-flow.f1 { background: rgba(29, 155, 240, 0.18);  color: rgb(14, 124, 206); box-shadow: inset 0 0 0 1px rgba(29, 155, 240, 0.45); }
+.fl-flow.f2 { background: rgba(0, 186, 124, 0.2);    color: rgb(0, 136, 92);   box-shadow: inset 0 0 0 1px rgba(0, 186, 124, 0.5); }
 .fl-flow.f3 { background: rgba(255, 159, 10, 0.18);  color: rgb(214, 126, 0); }
 .fl-flow.f4 { background: linear-gradient(135deg, rgba(249, 24, 128, 0.18), rgba(255, 159, 10, 0.2)); color: rgb(226, 22, 116); }
 
 /* 角落:绝对定位,底色不透明(把别的插件同位置的标完整盖住);--fl-bg 是页面底色 */
 .fl-flow.fl-flow-c { margin: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
-.fl-flow-c.f0 { background: linear-gradient(rgba(113,118,123,.16), rgba(113,118,123,.16)), var(--fl-bg, #fff); }
-.fl-flow-c.f1 { background: linear-gradient(rgba(29,155,240,.13), rgba(29,155,240,.13)), var(--fl-bg, #fff); }
-.fl-flow-c.f2 { background: linear-gradient(rgba(0,186,124,.15), rgba(0,186,124,.15)), var(--fl-bg, #fff); }
+.fl-flow-c.f0 { background: linear-gradient(rgba(113,118,123,.22), rgba(113,118,123,.22)), var(--fl-bg, #fff); }
+.fl-flow-c.f1 { background: linear-gradient(rgba(29,155,240,.18), rgba(29,155,240,.18)), var(--fl-bg, #fff); }
+.fl-flow-c.f2 { background: linear-gradient(rgba(0,186,124,.2), rgba(0,186,124,.2)), var(--fl-bg, #fff); }
 .fl-flow-c.f3 { background: linear-gradient(rgba(255,159,10,.18), rgba(255,159,10,.18)), var(--fl-bg, #fff); }
 .fl-flow-c.f4 { background: linear-gradient(135deg, rgba(249,24,128,.18), rgba(255,159,10,.2)), var(--fl-bg, #fff); }
 
@@ -131,7 +133,7 @@
 .fl-flow.fl-fx {
   position: relative; isolation: isolate; border: 0;
   color: #fff; font-weight: 800; letter-spacing: 0.2px; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  background: var(--fl-bg, #fff);          /* 底色用页面色,保证角落模式能完整盖住别人的标 */
+  background: var(--fl-bg, transparent);   /* 角落模式会设置 --fl-bg(页面底色),用来完整盖住别人的标;其它位置透明,否则深色页面上会露出一圈白边 */
 }
 .fl-flow.fl-flow-c.fl-fx { position: absolute; }
 .fl-flow.fl-fx .fl-emo { display: inline-block; will-change: transform; }
@@ -154,7 +156,7 @@
 .fl-flow.f4 .fl-fxbg::after { animation-duration: 1.4s; }
 /* 发光:静态的 box-shadow 放在伪元素上,只让它的透明度脉冲 */
 .fl-flow.fl-fx::after {
-  content: ""; position: absolute; inset: -2px; border-radius: inherit; z-index: -2; pointer-events: none; will-change: opacity;
+  content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -2; pointer-events: none; will-change: opacity;   /* inset 必须是 0:box-shadow 在元素自己的框里面不画,比标大的话,标和光之间会空出一圈露出页面底色(白边/黑边) */
   opacity: 0.45; animation: fl-glow-op 1.6s ease-in-out infinite;
 }
 .fl-flow.f3::after { box-shadow: 0 0 12px 1px rgba(255, 100, 20, 0.9); }
