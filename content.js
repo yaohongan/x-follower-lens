@@ -38,7 +38,7 @@
       hist = (res && res[HIST_KEY]) || {};
       const saved = (res && res[DOM_KEY]) || {};
       for (const h in saved) domScores.set(h, { ts: saved[h][0], s: saved[h][1], n: Object.values(saved[h][1]).reduce((a, b) => a + b, 0) });
-      applyDebug();
+      applyDebug(); applyHtml();
       flush();
     });
     chrome.storage.onChanged.addListener((changes, area) => {
@@ -48,9 +48,14 @@
       if (!changes[SETTINGS_KEY]) return;
       settings = P.mergeSettings(changes[SETTINGS_KEY].newValue);
       settingsVer++;
-      applyDebug();
+      applyDebug(); applyHtml();
       scheduleRender();
     });
+  }
+
+  // 把"隐藏别的插件的流速标"落到 <html> 的类上,由样式表生效(只在这条推文有我们的流速标时才隐藏)
+  function applyHtml() {
+    document.documentElement.classList.toggle("fl-hide-foreign", !!(settings && settings.enabled && settings.flow && settings.hideForeign));
   }
 
   function flush() {
@@ -371,25 +376,7 @@
     return "#fff";
   }
 
-  // 名字和 @ID 内容最右边的位置(用来判断角落的标会不会压住它们)
-  function contentRight(un) {
-    let r = 0;
-    for (const k of un.children) { if (k.classList && k.classList.contains("fl-badge")) continue; r = Math.max(r, k.getBoundingClientRect().right); }
-    return r;
-  }
 
-  // 盖住别人的流速标:按它实际渲染出来的矩形对位(右边缘对齐、顶部对齐、宽高至少一样、层级高 1),不靠猜坐标。
-  // 只画在上面,不删不改对方的元素。我们的标是 article 里的绝对定位元素,所以坐标按 article 的边来算。
-  function placeCorner(chip, article, foreign) {
-    const ar = article.getBoundingClientRect(), r = foreign.getBoundingClientRect();
-    const ch = chip.getBoundingClientRect().height;                       // 我们的标比别人的高几 px,就让它垂直居中盖住
-    const dy = ch > r.height ? (ch - r.height) / 2 : 0;
-    const right = Math.round(ar.right - r.right), top = Math.round(r.top - ar.top - dy);
-    const z = (parseInt(getComputedStyle(foreign).zIndex, 10) || 0) + 1;
-    const st = chip.style;
-    const want = { position: "absolute", right: right + "px", top: top + "px", zIndex: String(Math.max(z, 30)), minWidth: Math.round(r.width) + "px", minHeight: Math.round(r.height) + "px", textAlign: "center", boxSizing: "border-box" };
-    for (const k in want) if (st[k] !== want[k]) st[k] = want[k];
-  }
 
   // 图标单独包一层(动效要让图标单独抖动),其余是文字
   function setChip(chip, text, emoji) {
@@ -407,7 +394,8 @@
 
   const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h < 48 ? h.toFixed(1) + " 小时" : Math.round(h / 24) + " 天");
 
-  const flowRechecked = new WeakSet();   // 每条推文只在放好后复查一次位置(别的插件的浮层可能晚到)
+  const flowRechecked = new WeakSet();   // 每条推文只在放好后复查一次位置
+  const flowCardData = new WeakMap();    // article -> 悬停信息卡要用的数据(芯片和头像特效共用)
 
   function flowLevels(place, flow, rate, arrow) {
     return place !== "b"
@@ -415,11 +403,25 @@
       : [`${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`];
   }
 
-  function flowTooltip(flow, trend) {
-    const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
-      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)}${flow.old ? ",这是发布以来的平均速度" : flow.fresh ? ",刚发布,数字还不稳" : ""})`];
-    if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
-    return lines.join("\n");
+  // 悬停信息卡:鼠标放到流速标、头像上的小图标时,立刻显示这条推文的流速信息(不用等浏览器原生提示的 1 秒延迟)
+  function flowCardHtml(d) {
+    const { flow, trend, views } = d;
+    const rows = [];
+    rows.push(["流速", `<b>${Math.round(flow.rate).toLocaleString()} 次浏览/小时</b>`]);
+    rows.push(["浏览量", Number(views).toLocaleString()]);
+    rows.push(["发布", fmtAge(flow.ageH) + "前"]);
+    rows.push(["口径", settings.flowMode === "rel" ? "按作者粉丝量折算" : "发布以来的平均速度"]);
+    if (trend) rows.push(["最近一阵", `约 ${Math.round(trend.recent).toLocaleString()} 次/小时 ${trend.dir === "up" ? '<span class="up">↗ 在升温</span>' : trend.dir === "down" ? '<span class="down">↘ 在降温</span>' : "和平均差不多"}`]);
+    const tiers = settings.flowMode === "rel" ? "" : `<div class="fl-tip-r"><span>档位</span><b style="font-weight:400;font-size:11.5px">🐢&lt;30 🚲&lt;150 🛵&lt;600 🚀&lt;3k ⚡≥3k</b></div>`;
+    const note = flow.fresh ? "刚发布,数字还不稳" : flow.old ? "发布已久,这是发布以来的平均速度" : "";
+    return `<div class="fl-tip-h">${flow.emoji} ${flow.name}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + tiers + (note ? `<div class="fl-tip-n">${note}</div>` : "");
+  }
+
+  function bindFlowHover(el, article) {
+    if (el.dataset.flHover) return;
+    el.dataset.flHover = "1";
+    el.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(el, flowCardHtml(d)); });
+    el.addEventListener("mouseleave", hideTip);
   }
 
   function decorateFlow(article) {
@@ -427,14 +429,10 @@
     const id = tweetIdOf(article);
     const info = id && tweetInfo.get(id);
     const author = info && users.get(info.author);
-    let flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
-    // 超过 24 小时的老推文只给"发布以来的平均速度",而且只有 🛵 小电驴以上才显示:
-    // 否则个人主页上每条老推文都挂个"龟速",又吵又得罪创作者
-    if (flow && flow.old && flow.tier < 2) flow = null;
-    // 刚发布(15 分钟内)的推文浏览量还少:只显示 🚲 自行车以上,不显示龟速(那是"还没来得及涨",不是"慢")
-    if (flow && flow.fresh && flow.tier < 1) flow = null;
+    // 所有档位、所有年龄(1 分钟 ~ 30 天)的推文都显示,和别人的流速插件对齐;不再藏任何一档
+    const flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
     flowTier.set(article, flow ? flow.tier : -1);
-    if (!flow) { if (old) old.remove(); return; }
+    if (!flow) { if (old) old.remove(); flowCardData.delete(article); return; }
 
     const trend = flow.old ? null : P.trendOf(info.obs, flow.rate);
     const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
@@ -443,78 +441,56 @@
     // 稳态快路径:什么都没变,直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排)
     const key = `${flow.tier}|${settingsVer}`;
     const sig0 = `${key}|${rate}|${arrow}`;
-    if (old && old.isConnected && old.dataset.flSig0 === sig0) {
-      // corner 模式下,别的插件的标晚到/消失/从隐藏变可见时要跟上。判断"可见",不是"有没有这个元素":
-      // 别的插件常先放一个 display:none 的占位,数据到了才显示,元素一直在。
-      // 这里只读不写,浏览器布局是干净的就几乎没有开销;和放置时记下的状态(flFN)比,变了才重建一次
-      if (settings.flowPos !== "corner" || (findForeignChip(article) ? "1" : "0") === old.dataset.flFN) return;
-      old.dataset.flSig0 = ""; old.dataset.flKey = "";
-    }
-    // 只是数字变了(每次刷新浏览量都会变一点):原地改文字和提示。
-    // 不删不重建,不重新定位,动画也不会重新开始——否则每次数据刷新都会"闪一下"
+    if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
+    flowCardData.set(article, { flow, trend, views: info.views });
+    // 只是数字变了(每次刷新浏览量都会变一点):原地改文字。不删不重建、不重新定位、动画也不会重新开始
     if (old && old.isConnected && old.dataset.flKey === key) {
       const levels = flowLevels(old.dataset.flPlace, flow, rate, arrow);
       const text = levels[Math.min(+old.dataset.flLevel || 0, levels.length - 1)];
       const node = old.lastChild;
       if (node && node.nodeType === 3) node.nodeValue = text.slice(flow.emoji.length);
-      old.title = flowTooltip(flow, trend);
       old.dataset.flSig0 = sig0;
       return;
     }
 
     const un = article.querySelector('[data-testid="User-Name"]');
     const link = article.querySelector('[role="group"] a[href$="/analytics"]');
-    // 位置:corner = 固定在标题行右上角,和常见插件的流速标同一个位置(盖在它上面,不改它);
-    //       auto = 头部右侧没被占就放头部,否则放底部;header / bar = 固定头部 / 底部
+    // 位置:corner(替换,默认)= 排进标题行(菜单区左边),并把别的插件的流速标隐藏掉,换成我们的;
+    //       header = 同样排进标题行,但不隐藏别人的、并让到别人的标左边;auto = 标题行右侧没被占就放标题行,否则放底部;bar = 底部
     const row = un && headerRow(un);
     const menu = row && row.lastElementChild;
     const headerOk = !!menu && !menu.classList.contains("fl-flow");
     const cell = link && link.parentElement;
     const mode = settings.flowPos;
-    // corner:找到别人的流速标就盖在它上面;没找到就排进标题行(绝不凭空占一个角落坐标,那会压到 X 自己的按钮)
-    const foreign = mode === "corner" ? findForeignChip(article) : null;
-    const cornerOk = !!foreign && getComputedStyle(article).position !== "static";
-    const overlaid = headerOk && headerOverlays(article, row).length > 0;
-    let place = cornerOk ? "c" : headerOk && (mode === "header" || mode === "corner" || (mode === "auto" && !overlaid)) ? "h" : cell ? "b" : headerOk ? "h" : "";
+    const overlaid = headerOk && !settings.hideForeign && headerOverlays(article, row).length > 0;   // 别人的标被隐藏了就不算"占着"
+    let place = headerOk && (mode === "header" || mode === "corner" || (mode === "auto" && !overlaid)) ? "h" : cell ? "b" : headerOk ? "h" : "";
     if (!place) { if (old) old.remove(); return; }
 
     if (old) old.remove();
 
     const chip = document.createElement("span");
-    chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
+    chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
     chip.dataset.flKey = key;
     chip.dataset.flSig0 = sig0;
-    chip.dataset.flFN = findForeignChip(article) ? "1" : "0";
-    chip.title = flowTooltip(flow, trend);
+    bindFlowHover(chip, article);
 
     // 从详细到简略,放得下哪个就用哪个;记下选了第几档,之后原地更新文字时沿用
-    const levels = flowLevels(place, flow, rate, arrow);
+    let levels = flowLevels(place, flow, rate, arrow);
     let level = 0;
-    if (place === "c") {
-      chip.style.setProperty("--fl-bg", pageBg());
-      // 先设成绝对定位再加入页面。真实 X 的 article 是 flex 行,如果先加入,标会有一瞬间是"在流中的 flex 子元素",
-      // 把别人的标和标题行的按钮挤歪(页面抖一下),这时量出来的位置也是歪的
-      chip.style.position = "absolute";
-      article.append(chip);
-      placeCorner(chip, article, foreign);
-      const cr = contentRight(un);
-      let fitted = false;
-      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); placeCorner(chip, article, foreign); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
-      // 连图标都会压住名字:改放到底部浏览量旁
-      if (!fitted && cell) {
-        place = "b";
-        chip.remove(); chip.classList.remove("fl-flow-c"); chip.removeAttribute("style");
-        cell.append(chip);
-        const bl = flowLevels("b", flow, rate, arrow);
-        for (let i = 0; i < bl.length; i++) { level = i; setChip(chip, bl[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
-      }
-    } else if (place === "h") {
+    if (place === "h") {
       // 先撤下这条推文已有的粉丝徽标,等流速标就位后,render 会按"放得下行内、放不下换行"重新放
       const rec = placed.get(un);
       if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); placed.delete(un); }
       menu.before(chip);
-      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (!crowded(un, chip)) break; }
-      if (mode === "header") avoidOverlays(chip, article, row, menu);
+      let fitted = false;
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (!crowded(un, chip)) { fitted = true; break; } }
+      // 连图标都会压住名字或时间(名字特别长的时候):改放到底部浏览量旁,绝不遮挡文字
+      if (!fitted && cell) {
+        place = "b"; chip.classList.remove("fl-flow-h"); chip.remove();
+        cell.append(chip);
+        levels = flowLevels("b", flow, rate, arrow);
+        for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+      } else if (mode === "header" && !settings.hideForeign) avoidOverlays(chip, article, row, menu);
     } else {
       cell.append(chip);
       for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
@@ -522,8 +498,7 @@
     chip.dataset.flPlace = place;
     chip.dataset.flLevel = String(level);
 
-    // 别的插件的标可能比我们晚到(也可能被关掉):放好 1.5 秒和 4 秒后各复查一次位置。
-    // 只在"位置决策真的变了"时才重建;否则原地微调,不删不重建(重建会让标消失一瞬间)
+    // 放好 1.5 秒和 4 秒后各复查一次(别的插件的标可能晚到)。只在"位置决策真的变了"时才重建,否则不动
     if (!flowRechecked.has(article)) {
       flowRechecked.add(article);
       const recheck = () => {
@@ -533,14 +508,8 @@
         const row2 = un2 && headerRow(un2);
         if (!row2) return;
         const pl = c2.dataset.flPlace, md = settings.flowPos;
-        const foreign2 = findForeignChip(article);
-        if (md === "corner") {
-          if (pl === "c" && foreign2) { placeCorner(c2, article, foreign2); return; }
-          if ((pl === "c") !== !!foreign2) { c2.dataset.flKey = ""; c2.dataset.flSig0 = ""; scheduleRender(); }   // 别人的标出现了 / 消失了
-          return;
-        }
-        if (pl === "h" && md === "header") { avoidOverlays(c2, article, row2, row2.lastElementChild); return; }
-        if (md === "auto") {
+        if (pl === "h" && md === "header" && !settings.hideForeign) { avoidOverlays(c2, article, row2, row2.lastElementChild); return; }
+        if (md === "auto" && !settings.hideForeign) {
           const want = headerOverlays(article, row2).length > 0 ? "b" : "h";
           if (want !== pl) { c2.dataset.flKey = ""; c2.dataset.flSig0 = ""; scheduleRender(); }
         }
@@ -577,16 +546,30 @@
     container.querySelectorAll(":scope > .fl-ring, :scope > .fl-ring-badge, :scope > .fl-avx").forEach((n) => n.remove());
   }
 
-  function buildAvatarFx(container, tier, round) {
+  function buildAvatarFx(container, tier, round, article) {
     const w = mk(`fl-avx ax${tier} ${round ? "round" : "square"}`);
+    w.style.setProperty("--fl-bg", pageBg());                       // 小角色垫的圆底用页面底色,任何背景上都看得清
+    if (tier >= 2) w.append(mk("fl-glow"));                          // 脉冲的光晕(只用 opacity)
     if (round) {
+      // 小角色身后跟两个越来越淡的"残影"(同一条轨道、相位错开),有"在飞/在骑"的速度感。慢档(🐢)不拖尾
+      for (const g of tier >= 1 ? ["g2", "g1"] : []) {
+        const o = mk(`fl-orbit ${g}`);
+        o.append(mk("fl-orbit-i", AV_EMOJI[tier]));
+        w.append(o);
+      }
       const orbit = mk("fl-orbit");
-      orbit.append(mk("fl-orbit-i", AV_EMOJI[tier]));            // 小角色:乌龟 / 自行车 / 小电驴 / 火箭 / 闪电
+      orbit.append(mk("fl-orbit-i", AV_EMOJI[tier]));              // 小角色:乌龟 / 自行车 / 小电驴 / 火箭 / 闪电
       w.append(orbit);
-      if (tier === 4) { w.append(mk("fl-ring2")); w.append(mk("fl-wave")); }   // 光速:反向的内圈 + 周期性冲击波
+      if (tier === 4) { w.append(mk("fl-ring2")); w.append(mk("fl-wave")); w.append(mk("fl-wave w2")); }   // 光速:反向的内圈 + 两道错开的冲击波
     }
     if (tier >= 3) for (let k = 0; k < (tier === 4 ? 4 : 3); k++) w.append(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨"));   // 星星 / 火花
     container.append(w);
+    // 鼠标放到头像(含它外面绕圈的小图标)上,立刻显示这条推文的流速信息
+    if (!container.dataset.flHover) {
+      container.dataset.flHover = "1";
+      container.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(container, flowCardHtml(d)); });
+      container.addEventListener("mouseleave", hideTip);
+    }
   }
 
   function decorateAvatar(article) {
@@ -615,11 +598,12 @@
     container.append(el);
     // 角标只给方形头像(它不绕圈);圆形头像已经有绕圈的小角色,再放角标就是两只火箭了
     if (want >= 3 && !round) container.append(mk("fl-ring-badge", want === 4 ? "⚡" : "🚀"));
-    buildAvatarFx(container, want, round);
+    buildAvatarFx(container, want, round, article);
   }
 
   function cleanup() {
     document.querySelectorAll(".fl-ring, .fl-ring-badge, .fl-avx").forEach((r) => r.remove());
+    document.documentElement.classList.remove("fl-hide-foreign");
     document.querySelectorAll(".fl-flow").forEach((f) => f.remove());
     document.querySelectorAll(".fl-line").forEach((l) => l.remove());
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
@@ -634,15 +618,21 @@
     let entered = false;
     for (const e of entries) {
       if (e.isIntersecting) { near.add(e.target); entered = true; }
-      else { near.delete(e.target); if (!e.target.isConnected) io.unobserve(e.target); }
+      else { near.delete(e.target); if (!e.target.isConnected) { io.unobserve(e.target); ioVis.unobserve(e.target); } }
     }
     if (entered) scheduleRender();
   }, { rootMargin: "600px 0px 600px 0px" });
 
+  // 第二个观察器:真正在屏幕上的才让动画跑,在屏幕外的(上下 600px 缓冲区里,已装饰好但看不到)暂停动画。
+  // 用"暂停"类而不是"运行"类:这个类万一被 X 重绘冲掉,最坏结果只是多转一会儿,不会卡住不动
+  const ioVis = new IntersectionObserver((entries) => {
+    for (const e of entries) e.target.classList.toggle("fl-paused", !e.isIntersecting);
+  });
+
   function nearArticles() {
     const out = [];
     for (const a of document.querySelectorAll('article[data-testid="tweet"]')) {
-      if (!watched.has(a)) { watched.add(a); io.observe(a); }
+      if (!watched.has(a)) { watched.add(a); io.observe(a); ioVis.observe(a); }
       if (near.has(a)) out.push(a);
     }
     return out;
@@ -764,25 +754,28 @@
       rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("");
   }
 
-  function showTip(badge) {
-    if (!settings || !settings.hoverCard) return;
-    const handle = badge.dataset.flHandle;
+  function placeTip(anchor, html) {
     if (!tip) {
       tip = document.createElement("div");
       tip.id = "fl-tip";
       document.documentElement.append(tip);
     }
-    tip.innerHTML = tipHtml(handle);
+    tip.innerHTML = html;
     const m = getComputedStyle(document.body).backgroundColor.match(/\d+/g) || [255, 255, 255];
     tip.dataset.theme = (+m[0] * 299 + +m[1] * 587 + +m[2] * 114) / 1000 < 128 ? "dark" : "light";
     tip.style.display = "block";
-    const r = badge.getBoundingClientRect();
+    const r = anchor.getBoundingClientRect();
     const tw = tip.offsetWidth, th = tip.offsetHeight;
-    let left = Math.min(Math.max(8, r.left), window.innerWidth - tw - 8);
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - tw - 8);
     let top = r.bottom + 6;
     if (top + th > window.innerHeight - 8) top = Math.max(8, r.top - th - 6);
     tip.style.left = left + "px";
     tip.style.top = top + "px";
+  }
+
+  function showTip(badge) {
+    if (!settings || !settings.hoverCard) return;
+    placeTip(badge, tipHtml(badge.dataset.flHandle));
   }
   function hideTip() { if (tip) tip.style.display = "none"; }
 

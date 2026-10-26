@@ -40,10 +40,25 @@ with sync_playwright() as p:
       return {cls:w.className,orbit:o?getComputedStyle(o).animationName:null,orbitDur:o?getComputedStyle(o).animationDuration:null,emoji:i?i.textContent:null,iAnim:i?getComputedStyle(i).animationName:null,iDir:i?getComputedStyle(i).animationDirection:null,
         sparks:w.querySelectorAll('.fl-sp').length,ring2:!!w.querySelector('.fl-ring2'),wave:!!w.querySelector('.fl-wave'),waveAnim:w.querySelector('.fl-wave')?getComputedStyle(w.querySelector('.fl-wave')).animationName:null,n:c.querySelectorAll(':scope > .fl-avx').length}})""")
     check("每个头像只有一个特效容器",all(x["n"]==1 for x in fx if x))
-    check("🐢 小乌龟 40 秒绕一圈;🚲 8 秒;🛵 4 秒;🚀 2.2 秒;⚡ 1.2 秒(越快跑得越快)",[fx[k]["emoji"] for k in range(5)]==["🐢","🚲","🛵","🚀","⚡"] and [fx[k]["orbitDur"] for k in range(5)]==["40s","8s","4s","2.2s","1.2s"],[(fx[k]["emoji"],fx[k]["orbitDur"]) for k in range(5)])
+    check("🐢 20 秒一圈;🚲 6 秒;🛵 3 秒;🚀 1.8 秒;⚡ 1 秒(越快跑得越快)",[fx[k]["emoji"] for k in range(5)]==["🐢","🚲","🛵","🚀","⚡"] and [fx[k]["orbitDur"] for k in range(5)]==["20s","6s","3s","1.8s","1s"],[(fx[k]["emoji"],fx[k]["orbitDur"]) for k in range(5)])
     check("小角色反向转同样的时间,始终是正的(不会倒着转晕)",all("fl-spin" in fx[k]["iAnim"] and fx[k]["iDir"]=="reverse" for k in range(5)),fx[3])
     check("🚀 有 3 颗 ✨ 星星,⚡ 有 4 个火花;慢档没有",fx[3]["sparks"]==3 and fx[4]["sparks"]==4 and all(fx[k]["sparks"]==0 for k in (0,1,2)),[fx[k]["sparks"] for k in range(5)])
     check("只有 ⚡ 光速有反向内圈和冲击波",fx[4]["ring2"] and fx[4]["wave"] and "fl-wave" in fx[4]["waveAnim"] and not any(fx[k]["ring2"] or fx[k]["wave"] for k in (0,1,2,3)))
+    st2=pg.evaluate("""[...document.querySelectorAll('article')].map(a=>{const w=a.querySelector('.fl-avx');if(!w)return null;const head=w.querySelector('.fl-orbit:not(.g1):not(.g2) .fl-orbit-i');
+      return {orbits:w.querySelectorAll('.fl-orbit').length,ghosts:w.querySelectorAll('.fl-orbit.g1,.fl-orbit.g2').length,glow:!!w.querySelector('.fl-glow'),waves:w.querySelectorAll('.fl-wave').length,
+        bubbleBg:head?getComputedStyle(head).backgroundColor:null,headPointer:head?getComputedStyle(head).pointerEvents:null,ghostPointer:w.querySelector('.fl-orbit.g1 .fl-orbit-i')?getComputedStyle(w.querySelector('.fl-orbit.g1 .fl-orbit-i')).pointerEvents:null,
+        ghostDelay:w.querySelector('.fl-orbit.g2')?getComputedStyle(w.querySelector('.fl-orbit.g2')).animationDelay:null,size:head?Math.round(head.getBoundingClientRect().width):null}})""")
+    check("🐢 不拖尾(1 个小角色);🚲 以上带 2 个残影(共 3 个),残影不挡鼠标、相位错开",st2[0]["orbits"]==1 and all(st2[k]["orbits"]==3 and st2[k]["ghosts"]==2 for k in (1,2,3,4)) and st2[3]["ghostPointer"]=="none" and st2[3]["ghostDelay"]!="0s",[(x or {}).get("orbits") for x in st2])
+    check("🛵 以上有脉冲光晕;🐢 🚲 没有",all(st2[k]["glow"] for k in (2,3,4)) and not st2[0]["glow"] and not st2[1]["glow"])
+    check("⚡ 有两道错开的冲击波;其它档没有",st2[4]["waves"]==2 and all(st2[k]["waves"]==0 for k in (0,1,2,3)))
+    check("小角色垫了不透明的圆底(在任何背景上都看得清),🚀 ⚡ 比其它档大",all(st2[k]["bubbleBg"] not in (None,"rgba(0, 0, 0, 0)") for k in range(5)) and st2[3]["size"]>st2[0]["size"] and st2[4]["size"]>st2[2]["size"],[(x or {}).get("size") for x in st2])
+    check("绕圈的小角色能接收鼠标(用来触发信息卡)",all(st2[k]["headPointer"]=="auto" for k in range(5)))
+    # 鼠标放到头像上 / 放到绕圈的小角色上:立刻显示这条推文的流速信息卡
+    pg.hover('article:nth-child(4) [data-testid^=UserAvatar-Container-]'); pg.wait_for_timeout(300)
+    card=pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return t&&t.style.display!=='none'?t.innerText.replace(/\\n/g,' | '):null})()")
+    check("鼠标放到头像上:显示信息卡(流速、浏览量、发布多久、口径)",card and all(k in card for k in ("次浏览/小时","浏览量","发布","口径")),card)
+    pg.mouse.move(2,2); pg.wait_for_timeout(250)
+    check("移开后信息卡消失",pg.evaluate("document.getElementById('fl-tip').style.display==='none'"))
     check("方形头像(企业号):没有绕圈小角色和冲击波,不转",fx[5] and fx[5]["emoji"] is None and not fx[5]["wave"],fx[5])
     allanim=pg.evaluate("[...document.querySelectorAll('.fl-ring,.fl-ring2,.fl-orbit,.fl-orbit-i,.fl-sp,.fl-wave')].map(e=>getComputedStyle(e).animationName)")
     check("所有头像动画都只用 transform / opacity(不用 background-position、box-shadow)",all(n in ("none","fl-spin","fl-glow-op","fl-wave","fl-twinkle") for n in allanim),sorted(set(allanim)))

@@ -14,8 +14,9 @@
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
     avatarFx: true,       // 头像光环:按这条推文的流速,给作者头像加一圈光环(🛵 以上)
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
-    flowPos: "corner",    // 流速位置:corner 固定在标题行右上角(盖住别的插件在同位置的标)/ auto 自动避让 / header 头部右侧 / bar 底部操作栏
-    layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
+    hideForeign: true,    // 有我们的流速标时,把别的插件的流速标隐藏掉(换成我们的,不再重复、也不会遮挡时间)
+    flowPos: "corner",    // 流速位置:corner 替换(默认,排进标题行 + 隐藏别人的)/ header 头部(让到别人的左边)/ auto 自动 / bar 底部
+    layout: "below",      // 徽标位置:below 单独一行(默认)/ auto 自动 / inline 行内。昵称后面再跟一串标签太长,放到下一行更干净
     maxTags: 3,           // 徽标里最多显示几个标签(0 = 只显示粉丝数)
     debug: false,         // 左下角调试条
     tags: {
@@ -266,7 +267,7 @@
   const FLOW_REL = [0.5, 2, 8, 30];        // 每小时、每千粉丝的浏览量
   const FLOW_MIN_AGE_H = 1 / 60;           // 发布不足 1 分钟:太早,不算
   const FLOW_FRESH_MIN_H = 0.25;           // 15 分钟内算"刚发布":浏览量还少,数字不稳,低档位(龟速)会误导,不显示
-  const FLOW_MIN_VIEWS = 10;               // 浏览量不到 10:样本太小,不算
+  const FLOW_MIN_VIEWS = 1;                // 至少 1 次浏览(0 次没有速度可言)。不再设"样本太小不算"的门槛,和别的流速插件一样都显示
   const FLOW_FRESH_H = 24;                 // 24 小时内:"实时流速",带趋势箭头
   const FLOW_MAX_AGE_H = 720;              // 超过 30 天不算。24 小时~30 天之间是"发布以来的平均速度"(old: true)
 

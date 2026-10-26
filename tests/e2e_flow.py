@@ -45,55 +45,60 @@ with sync_playwright() as p:
     chips="""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('.fl-flow');if(!c)return null;const un=a.querySelector('[data-testid=User-Name]');const row=un.parentElement.parentElement.parentElement;const bar=a.querySelector('[role=group] a[href$="/analytics"]').parentElement;
       return {t:c.textContent.trim(),title:c.title.replace(/\\n/g,' / '),inHeader:c.parentElement===row&&c.nextElementSibling===row.lastElementChild,inBar:c.parentElement===bar,inCorner:c.parentElement===a&&c.classList.contains('fl-flow-c'),barOverflow:bar.scrollWidth>bar.clientWidth+1,cnt:a.querySelectorAll('.fl-flow').length}})"""
     s=pg.evaluate(chips); print(json.dumps(s,ensure_ascii=False)[:600])
-    # ---- 默认:角落(盖住别的插件同位置的标)----
-    check("默认(角落模式):有别人的标的推文盖在它上面(第 1、13 条);没有的排进标题行(第 4 条)",s[0] and s[0]["inCorner"] and s[12] and s[12]["inCorner"] and s[3] and s[3]["inHeader"] and not s[3]["inCorner"],[(x or {}).get("inCorner") for x in s])
-    cv=pg.evaluate("""(()=>{const a=document.querySelector('article');const o=a.querySelector('.sopilot-x-velocity-host');const c=a.querySelector('.fl-flow');
-      const or=o.getBoundingClientRect(), cr=c.getBoundingClientRect(), cs=getComputedStyle(c);
-      return {covers:cr.left<=or.left+1&&cr.right>=or.right-1&&cr.top<=or.top+1&&cr.bottom>=or.bottom-1, z:+cs.zIndex, ovz:+getComputedStyle(o).zIndex, opaque:(cs.backgroundImage.includes('gradient')||/^rgb\(/.test(cs.backgroundColor))&&!!c.style.getPropertyValue('--fl-bg'), right:cs.right, top:cs.top, ovStillThere:!!o&&o.textContent==='548/h'}})()""")
-    check("角落:把别的插件的标完整盖住(位置、尺寸都覆盖)",cv["covers"],cv)
-    check("角落:层级比对方高;底色不透明;对方元素原样还在(没删没改)",cv["z"]>cv["ovz"] and cv["opaque"] and cv["ovStillThere"],cv)
-    check("没有别的插件的标时:排进标题行(菜单区左边),不占角落坐标、不压 X 自己的按钮",s[3] and s[3]["inHeader"] and not s[3]["inCorner"],s[3])
-    # 详情页式:别人的标是 static、嵌在标题行里,旁边有"订阅"按钮
-    dv=pg.evaluate("""(()=>{const a=[...document.querySelectorAll('article')].find(x=>x.querySelector('.hdr-right'));const c=a.querySelector('.fl-flow'),f=a.querySelector('.sopilot-x-velocity-host'),s=a.querySelector('.sub-btn');
-      const cr=c.getBoundingClientRect(),fr=f.getBoundingClientRect(),sr=s.getBoundingClientRect();
+    # ---- 默认:替换(隐藏别的插件的流速标,我们的排进标题行)----
+    check("默认(替换):流速标排进标题行(菜单区左边),没有悬空的绝对定位;名字特别长放不下的(第 7 条)改放底部、绝不遮挡文字",all(x is None or (not x["inCorner"]) for x in s) and s[0]["inHeader"] and s[12]["inHeader"] and s[6] and s[6]["inBar"],[(x or {}).get("inHeader") for x in s])
+    rp=pg.evaluate("""(()=>{const f=(i)=>{const a=document.querySelectorAll('article')[i];const fo=a.querySelector('.sopilot-x-velocity-host');return fo?getComputedStyle(fo).visibility:null};
       const hit=(x,y)=>!(x.right<=y.left||x.left>=y.right||x.bottom<=y.top||x.top>=y.bottom);
-      return {corner:c.classList.contains('fl-flow-c'),covers:cr.left<=fr.left+1&&cr.right>=fr.right-1&&cr.top<=fr.top+1&&cr.bottom>=fr.bottom-1,hitsSubscribe:hit(cr,sr),foreignThere:!!f&&f.textContent==='爆款 28k/h'}})()""")
-    check("详情页式(别人的标嵌在标题行里):按它实际位置完整盖住",dv["corner"] and dv["covers"],dv)
-    check("详情页式:没有压到旁边的'订阅'按钮;对方元素原样还在",(not dv["hitsSubscribe"]) and dv["foreignThere"],dv)
-    # 别人的标晚到:我们本来排在标题行里,它出现后应自动改成盖住它
-    pg.evaluate("""(()=>{const a=document.querySelectorAll('article')[3];const un=a.querySelector('[data-testid=User-Name]');const row=un.parentElement.parentElement.parentElement;const d=document.createElement('div');d.className='sopilot-x-velocity-host late';d.style.cssText='position:absolute;right:96px;top:10px;width:70px;height:20px;background:#a3a;z-index:20';d.textContent='爆款 9k/h';a.append(d)})()"""); pg.wait_for_timeout(900)
-    late=pg.evaluate("(()=>{const a=document.querySelectorAll('article')[3];const c=a.querySelector('.fl-flow');const f=a.querySelector('.late');const cr=c.getBoundingClientRect(),fr=f.getBoundingClientRect();return {corner:c.classList.contains('fl-flow-c'),covers:cr.left<=fr.left+1&&cr.right>=fr.right-1&&cr.top<=fr.top+1&&cr.bottom>=fr.bottom-1,n:a.querySelectorAll('.fl-flow').length}})()")
-    check("别人的标晚到:自动改成盖住它,而且只有一个流速标",late["corner"] and late["covers"] and late["n"]==1,late)
-    pg.evaluate("document.querySelectorAll('article')[3].querySelector('.late').remove()"); pg.wait_for_timeout(900)
-    gone=pg.evaluate("(()=>{const a=document.querySelectorAll('article')[3];const c=a.querySelector('.fl-flow');return {corner:c.classList.contains('fl-flow-c'),inHeader:c.classList.contains('fl-flow-h'),n:a.querySelectorAll('.fl-flow').length}})()")
-    check("别人的标消失(比如被关掉):自动退回标题行,不再悬空盖在原地",(not gone["corner"]) and gone["inHeader"] and gone["n"]==1,gone)
-    # ---- 切到 自动 ----
+      const a=[...document.querySelectorAll('article')].find(x=>x.querySelector('.hdr-right'));const c=a.querySelector('.fl-flow').getBoundingClientRect(),s=a.querySelector('.sub-btn').getBoundingClientRect();
+      const names=[...document.querySelectorAll('article')[0].querySelectorAll('[data-testid=User-Name] a, [data-testid=User-Name] time')];const c0=document.querySelectorAll('article')[0].querySelector('.fl-flow').getBoundingClientRect();
+      return {vis0:f(0),vis12:f(12),stillThere0:!!document.querySelectorAll('article')[0].querySelector('.sopilot-x-velocity-host'),hitSub:hit(c,s),hitText:names.some(n=>{const r=n.getBoundingClientRect();return r.width>0&&hit(c0,r)}),htmlCls:document.documentElement.classList.contains('fl-hide-foreign')}})()""")
+    check("别的插件的流速标被隐藏(visibility:hidden),但元素还在(没删没改):时间线式和详情页式都是",rp["vis0"]=="hidden" and rp["vis12"]=="hidden" and rp["stillThere0"] and rp["htmlCls"],rp)
+    check("我们的标不遮挡名字/时间,也不压旁边的'订阅'按钮(详情页式)",(not rp["hitText"]) and (not rp["hitSub"]),rp)
+    # 别人的标晚到:也要被隐藏
+    pg.evaluate("""(()=>{const a=document.querySelectorAll('article')[3];const d=document.createElement('div');d.className='sopilot-x-velocity-host late';d.style.cssText='position:absolute;right:96px;top:10px;width:70px;height:20px;background:#a3a;z-index:20';d.textContent='爆款 9k/h';a.append(d)})()"""); pg.wait_for_timeout(600)
+    late=pg.evaluate("(()=>{const a=document.querySelectorAll('article')[3];return {vis:getComputedStyle(a.querySelector('.late')).visibility,n:a.querySelectorAll('.fl-flow').length,inHeader:a.querySelector('.fl-flow').classList.contains('fl-flow-h')}})()")
+    check("别人的标晚到:同样被隐藏;我们仍只有一个流速标,位置不动",late["vis"]=="hidden" and late["n"]==1 and late["inHeader"],late)
+    pg.evaluate("document.querySelector('.late').remove()")   # 清理这个假的"别人的标",免得影响后面"自动/头部"模式的测试
+    # 悬停信息卡(第 4 条 = 小电驴 450/h)
+    pg.hover('article:nth-child(4) .fl-flow'); pg.wait_for_timeout(250)
+    card=pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return t&&t.style.display!=='none'?t.innerText.replace(/\\n/g,' | '):null})()")
+    check("鼠标放到流速标上:立刻显示信息卡(流速、浏览量、发布多久、口径、档位)",card and all(k in card for k in ("次浏览/小时","浏览量","发布","口径","档位")),card)
+    pg.mouse.move(2,2); pg.wait_for_timeout(200)
+    check("移开后信息卡消失",pg.evaluate("document.getElementById('fl-tip').style.display==='none'"))
     # ---- 切到 自动 ----
     pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
-    check("弹窗:位置默认 角落",pop0.evaluate("document.querySelector('input[data-key=flowPos]:checked').value")=="corner")
+    check("弹窗:位置默认 替换(corner)",pop0.evaluate("document.querySelector('input[data-key=flowPos]:checked').value")=="corner")
     pop0.click('input[data-key=flowFx]'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1000)
     check("关闭流速动效:火箭/光速不再带动效 class",pg.evaluate("document.querySelectorAll('.fl-fx').length")==0)
     pop0.bring_to_front(); pop0.click('input[data-key=flowFx]'); pop0.wait_for_timeout(300)
+    # 默认已把别人的标隐藏,就无所谓"被占着"了。要测"自动"和"头部"的避让,先把"隐藏别的插件的流速标"关掉
+    check("弹窗:'隐藏别的插件的流速标'默认勾选",pop0.evaluate("document.querySelector('input[data-key=hideForeign]').checked"))
+    pop0.click('input[data-key=hideForeign]'); pop0.wait_for_timeout(300)
     pop0.click('input[data-key=flowPos][value=auto] + span'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
+    check("关掉隐藏后:别的插件的标重新可见(没有被我们永久改掉)",pg.evaluate("getComputedStyle(document.querySelectorAll('article')[0].querySelector('.sopilot-x-velocity-host')).visibility")=="visible")
     s=pg.evaluate(chips)
     check("自动:头部右侧没被占的推文放头部(菜单区左边)",s[3] and s[3]["inHeader"] and not s[3]["inBar"] and not s[3]["inCorner"])
     check("自动:头部右侧被别的插件浮层占着的推文,改放底部浏览量旁",s[0] and s[0]["inBar"] and not s[0]["inHeader"],(s[0] or {}).get("t"))
     check("5000次/2h=火箭(底部:图标+数字,放不下就只留图标)",s[0] and "🚀" in s[0]["t"],s[0] and s[0]["t"])
     check("20次/2h=龟速",s[1] and "龟速" in s[1]["t"])
-    check("发布 30 小时但很慢(龟速):不显示",s[2] is None)
-    check("发布 30 小时但很快:显示,并说明是发布以来的平均速度,不带趋势箭头",s[8] and "平均速度" in s[8]["title"] and not any(a in s[8]["t"] for a in "↗↘"),s[8])
+    check("发布 30 小时、很慢:也显示 🐢 龟速(不再藏低档,和别的流速插件对齐)",s[2] and "龟速" in s[2]["t"],s[2] and s[2]["t"])
+    pg.hover('article:nth-child(9) .fl-flow'); pg.wait_for_timeout(250)
+    c9=pg.evaluate("document.getElementById('fl-tip').innerText"); pg.mouse.move(2,2)
+    check("发布 30 小时但很快:显示,信息卡说明是发布以来的平均速度,不带趋势箭头",s[8] and "平均速度" in c9 and not any(a in s[8]["t"] for a in "↗↘"),c9.replace(chr(10)," | "))
     check("发布超过 30 天:不显示",s[9] is None)
     check("900次/2h(粉丝5万,绝对)=小电驴;头部放得下时:名称+数字",s[3] and "小电驴" in s[3]["t"] and "/h" in s[3]["t"],s[3] and s[3]["t"])
     check("刚发布(12 分钟)10 次浏览 = 50/h:显示 🚲 自行车(刚发布也要有)",s[5] and "自行车" in s[5]["t"],s[5] and s[5]["t"])
-    check("刚发布(3 分钟)但已经很快:显示,提示里说明数字还不稳",s[10] and "刚发布" in s[10]["title"],s[10])
-    check("浏览量不到 10 的:不显示(样本太小)",s[11] is None)
+    pg.hover('article:nth-child(11) .fl-flow'); pg.wait_for_timeout(250)
+    c11=pg.evaluate("document.getElementById('fl-tip').innerText"); pg.mouse.move(2,2)
+    check("刚发布(3 分钟)但已经很快:显示,信息卡说明数字还不稳",s[10] and "刚发布" in c11,c11.replace(chr(10)," | "))
+    check("浏览量很少的(5 次/3 分钟)也显示,不再设样本门槛",s[11] and "/h" in s[11]["t"],s[11] and s[11]["t"])
     check("每条推文只有一个流速标",all(x["cnt"]==1 for x in s if x))
     pop0.click('input[data-key=flowPos][value=header] + span'); pop0.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     ov=pg.evaluate("""(()=>{const a=document.querySelector('article');const o=a.querySelector('.sopilot-x-velocity-host').getBoundingClientRect();
       const chip=a.querySelector('.fl-flow');const c=chip.getBoundingClientRect();const mn=chip.nextElementSibling.getBoundingClientRect();
       return {wouldOverlap:o.left<mn.left-8,overlap:!(c.right<=o.left||c.left>=o.right||c.bottom<=o.top||c.top>=o.bottom),chipRight:Math.round(c.right),ovLeft:Math.round(o.left),menuLeft:Math.round(mn.left)}})()""")
     check("固定放头部时:流速标自动让到浮层左边,不重叠",not ov["overlap"] and ov["chipRight"]<=ov["ovLeft"] and ov["wouldOverlap"],ov)
-    check("提示里有每小时浏览量",s[3] and "次浏览/小时" in s[3]["title"])
+    check("流速标还在",s[3] is not None)
     check("头部挤的时候逐级缩短(最终只留图标)",s[6] and "火箭" not in s[6]["t"],s[6] and s[6]["t"])
     pg.screenshot(path=os.path.join(tempfile.gettempdir(),"shot_flow_header.png"))
     pop=pop0
