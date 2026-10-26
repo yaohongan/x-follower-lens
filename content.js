@@ -590,7 +590,84 @@
     buildAvatarFx(container, want, round, article);
   }
 
+
+  // ---------- 账号名片(个人主页上的「生成名片」)----------
+  const RESERVED = new Set(["home", "explore", "notifications", "messages", "i", "settings", "search", "compose", "login", "signup", "tos", "privacy", "intent", "share", "hashtag", "jobs", "lists", "bookmarks", "communities", "premium", "verified-orgs-signup"]);
+  function profileHandle() {
+    const m = location.pathname.match(/^\/([A-Za-z0-9_]{1,15})(?:\/(?:with_replies|highlights|media|articles))?\/?$/);
+    return m && !RESERVED.has(m[1].toLowerCase()) ? m[1].toLowerCase() : null;
+  }
+  function ensureCardBtn() {
+    const old = document.querySelector(".fl-card-btn");
+    const handle = settings.cardBtn ? profileHandle() : null;
+    const un = handle && document.querySelector('[data-testid="UserName"]');
+    if (!un || !users.has(handle)) { if (old) old.remove(); return; }
+    if (old && old.dataset.h === handle && old.isConnected && old.previousElementSibling === un) return;
+    if (old) old.remove();
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "fl-card-btn"; b.dataset.h = handle; b.textContent = "🔍 生成账号名片";
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openCard(handle); });
+    un.insertAdjacentElement("afterend", b);
+  }
+
+  function cardData(handle, avatar) {
+    const u = users.get(handle), now = Date.now(), stat = stats.get(handle);
+    const sc = P.qualityScore(u, stat, now);
+    const doms = settings.tags.domain ? P.pickDomains(u.bio, (domScores.get(handle) || {}).s, settings.customDomains) : [];
+    const all = Object.assign({}, settings, { tags: { relation: false, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true, domain: true } });
+    const tags = P.tags(u, stat, now, all, { domain: doms[0] }).map((t) => t.text);
+    if (doms[1]) tags.splice(1, 0, doms[1].name);
+    const d = new Date(now);
+    return {
+      name: u.name, handle: u.handle, avatar, followers: u.followers.toLocaleString(), following: u.following.toLocaleString(),
+      ratio: P.fmtRatio(P.ratioOf(u)), ageText: u.createdAt ? accountAge(u.createdAt, now).split(" · ")[1] || "—" : "—", score: sc, tags,
+      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    };
+  }
+
+  function loadAvatar(handle) {
+    return new Promise((resolve) => {
+      const img0 = document.querySelector(`[data-testid="UserAvatar-Container-${handle}"] img`) || document.querySelector('a[href$="/photo"] img');
+      const src = img0 && img0.src && img0.src.replace(/_(normal|bigger|200x200|reasonably_small)\./, "_400x400.");
+      if (!src) return resolve(null);
+      const img = new Image(); img.crossOrigin = "anonymous";
+      const t = setTimeout(() => resolve(null), 4000);
+      img.onload = () => { clearTimeout(t); resolve(img); };
+      img.onerror = () => { clearTimeout(t); resolve(null); };
+      img.src = src;
+    });
+  }
+
+  function closeCard() { const m = document.getElementById("fl-card-modal"); if (m) m.remove(); document.removeEventListener("keydown", onCardKey, true); }
+  function onCardKey(e) { if (e.key === "Escape") { e.stopPropagation(); closeCard(); } }
+
+  async function openCard(handle) {
+    closeCard();
+    const m = document.createElement("div"); m.id = "fl-card-modal";
+    m.innerHTML = '<div class="fl-card-box"><canvas class="fl-card-cv"></canvas><div class="fl-card-bar"><button data-a="dl">⬇ 下载图片</button><button data-a="cp">📋 复制图片</button><button data-a="x" class="ghost">关闭</button></div><div class="fl-card-msg"></div></div>';
+    m.addEventListener("click", (e) => { if (e.target === m) closeCard(); });
+    document.documentElement.append(m);
+    document.addEventListener("keydown", onCardKey, true);
+    const cv = m.querySelector("canvas"), msg = m.querySelector(".fl-card-msg");
+    msg.textContent = "生成中…";
+    const avatar = await loadAvatar(handle);
+    if (!users.has(handle) || !m.isConnected) return;
+    window.FollowerLensCard.draw(cv, cardData(handle, avatar));
+    msg.textContent = avatar ? "" : "头像没取到,用首字代替(不影响其它内容)";
+    const blob = () => new Promise((res) => cv.toBlob(res, "image/png"));
+    m.querySelector(".fl-card-bar").addEventListener("click", async (e) => {
+      const a = e.target.dataset && e.target.dataset.a; if (!a) return;
+      if (a === "x") return closeCard();
+      try {
+        const b = await blob();
+        if (a === "dl") { const l = document.createElement("a"); l.href = URL.createObjectURL(b); l.download = `粉丝透镜-${handle}.png`; l.click(); setTimeout(() => URL.revokeObjectURL(l.href), 2000); msg.textContent = "已下载"; }
+        else { await navigator.clipboard.write([new ClipboardItem({ "image/png": b })]); msg.textContent = "已复制,去 X 的发推框里直接粘贴"; }
+      } catch (err) { msg.textContent = a === "cp" ? "复制失败,请用「下载图片」" : "保存失败:" + (err && err.message); }
+    });
+  }
+
   function cleanup() {
+    document.querySelectorAll(".fl-card-btn").forEach((n) => n.remove()); closeCard();
     document.querySelectorAll(".fl-ring, .fl-ring-badge, .fl-avx").forEach((r) => r.remove());
     document.documentElement.classList.remove("fl-hide-foreign");
     document.querySelectorAll(".fl-flow").forEach((f) => f.remove());
@@ -641,6 +718,7 @@
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
       decorateCell(cell, nameBlock && nameBlock.parentElement);
     });
+    ensureCardBtn();
     updateHud();
     perf.renderMs += performance.now() - t0;
   }
@@ -652,9 +730,9 @@
   }
 
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
-  const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"]';
-  function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || (typeof n.className === "string" && n.className.includes("fl-"))); }
-  const OURS_SEL = ".fl-badge, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
+  const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"], [data-testid="UserName"]';
+  function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || n.id === "fl-card-modal" || (typeof n.className === "string" && n.className.includes("fl-"))); }
+  const OURS_SEL = ".fl-badge, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
   new MutationObserver((muts) => {
     const t0 = performance.now();
     try { onMutations(muts); } finally { perf.mutMs += performance.now() - t0; perf.mutCalls++; }

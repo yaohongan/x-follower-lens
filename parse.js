@@ -12,6 +12,7 @@
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
+    cardBtn: true,        // 个人主页上显示「生成名片」按钮
     avatarFx: true,       // 头像特效:按这条推文的流速,给作者头像加圈和小角色
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
     hideForeign: true,    // 有我们的流速标时,把别的插件的流速标隐藏掉(换成我们的,不再重复、也不会遮挡时间)
@@ -140,6 +141,31 @@
     // 老号信息量最低,排最后(徽标最多展示前 3 个)
     if (on.oldAcct && days !== null && days > 365 * 8) out.push({ key: "oldAcct", text: "老号", cls: "" });
     return out;
+  }
+
+  // ---- 粉丝质量指数(0-100):名片上的大数字。纯启发式、全部来自公开数字,只是参考,不是判决 ----
+  // 四项:粉丝/关注比 35 分、互动率 30 分(样本不足按中间值 15,并标明)、账号年龄 20 分、内容产出 15 分;疑似互粉号扣 15 分。
+  function qualityScore(user, stat, now) {
+    const ratio = ratioOf(user);
+    const rScore = ratio >= 10 ? 35 : ratio >= 3 ? 28 : ratio >= 1 ? 20 : ratio >= 0.5 ? 12 : 5;
+    const days = user.createdAt ? (now - new Date(user.createdAt).getTime()) / 86400000 : null;
+    const aScore = days === null ? 8 : days >= 1825 ? 20 : days >= 730 ? 15 : days >= 365 ? 10 : days >= 90 ? 6 : 2;
+    const er = engagementOf(stat);
+    const eScore = er === null ? 15 : er >= 0.03 ? 30 : er >= 0.01 ? 24 : er >= 0.003 ? 16 : er >= 0.001 ? 9 : 3;
+    const t = user.tweets;
+    const pScore = t === null || t === undefined ? 7 : t >= 3000 ? 15 : t >= 500 ? 11 : t >= 100 ? 7 : 3;
+    const farm = user.following >= 1000 && ratio > 0.8 && ratio < 1.25 && user.followers < 5000;
+    const score = Math.max(0, Math.min(100, rScore + aScore + eScore + pScore - (farm ? 15 : 0)));
+    const label = score >= 80 ? "优质" : score >= 60 ? "良好" : score >= 40 ? "一般" : "存疑";
+    return {
+      score, label, farm, er,
+      parts: [
+        { name: "粉丝关注比", got: rScore, max: 35, note: fmtRatio(ratio) },
+        { name: "互动率", got: eScore, max: 30, note: er === null ? "样本不足" : (er * 100).toFixed(2) + "%" },
+        { name: "账号年龄", got: aScore, max: 20, note: days === null ? "未知" : days >= 365 ? (days / 365).toFixed(1).replace(/\.0$/, "") + " 年" : Math.max(1, Math.round(days / 30.44)) + " 个月" },
+        { name: "内容产出", got: pScore, max: 15, note: t === null || t === undefined ? "未知" : Number(t).toLocaleString() + " 条" },
+      ],
+    };
   }
 
   // 粉丝量分级 0..4,用于徽标配色
@@ -308,7 +334,7 @@
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom };
+  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);
