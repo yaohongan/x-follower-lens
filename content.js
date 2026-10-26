@@ -537,8 +537,8 @@
     return null;
   }
 
-  // ----- 头像特效:每一档一套"小角色绕着头像跑",越快跑得越疯 -----
-  // 所有动画只用 transform / opacity(合成线程,不占主线程)。方形头像(企业号)不绕圈,只保留圈和角标。
+  // ----- 头像速度环:一圈彗星环 + 一个沿环跑的小图标,转速就是流速 -----
+  // 动画只用 transform(合成线程)。方形头像(企业号)不转,只留静态圈和角标。
   const AV_EMOJI = ["🐢", "🚲", "🛵", "🚀", "⚡"];
   const mk = (cls, text) => { const s = document.createElement("span"); s.className = cls; if (text) s.textContent = text; return s; };
 
@@ -546,43 +546,13 @@
     container.querySelectorAll(":scope > .fl-ring, :scope > .fl-ring-badge, :scope > .fl-avx").forEach((n) => n.remove());
   }
 
-  // 三档特效强度(设置里"特效强度"):
-  //   安静:只有一圈和一个很小的静态图标,不动
-  //   标准(默认):平时克制 —— 🐢 头顶飘 💤、🚲 🛵 一个小图标(🛵 带一缕尾气)、🚀 ⚡ 一个小角色绕圈 + 一两颗星/火花;
-  //               鼠标放到头像上才展开残影、光晕、冲击波这些"大特效"(平时隐藏、动画暂停)
-  //   热闹:全部一直开着(圆底小角色、残影、光晕、冲击波)
-  function buildAvatarFx(container, tier, round, article, level) {
-    const w = mk(`fl-avx ax${tier} lv-${level} ${round ? "round" : "square"}`);
-    w.style.setProperty("--fl-bg", pageBg());                       // 圆底用页面底色,任何背景上都看得清
-    const E = AV_EMOJI[tier];
-    const hot = (el) => { el.classList.add("fl-hot"); return el; };   // 标准档里"平时隐藏、悬停才出现"
-    if (level === "lively") {
-      if (tier >= 2) w.append(mk("fl-glow"));
-      if (round) {
-        for (const g of tier >= 1 ? ["g2", "g1"] : []) { const o = mk(`fl-orbit ${g}`); o.append(mk("fl-orbit-i", E)); w.append(o); }
-        const orbit = mk("fl-orbit"); orbit.append(mk("fl-orbit-i", E)); w.append(orbit);
-        if (tier === 4) { w.append(mk("fl-ring2")); w.append(mk("fl-wave")); w.append(mk("fl-wave w2")); }
-      }
-      if (tier >= 3) for (let k = 0; k < (tier === 4 ? 4 : 3); k++) w.append(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨"));
-    } else if (round) {
-      if (level === "quiet") {
-        w.append(mk("fl-pin", E));
-      } else {
-        if (tier === 0) w.append(mk("fl-zzz", "💤"));
-        else if (tier <= 2) { w.append(mk("fl-pin", E)); if (tier === 2) w.append(mk("fl-puff", "💨")); }
-        else {
-          const orbit = mk("fl-orbit"); orbit.append(mk("fl-orbit-i", E)); w.append(orbit);
-          w.append(mk("fl-sp s0", tier === 4 ? "⚡" : "✨"));
-          if (tier === 4) w.append(mk("fl-sp s1", "⚡"));
-          for (const g of ["g2", "g1"]) { const o = hot(mk(`fl-orbit ${g}`)); o.append(mk("fl-orbit-i", E)); w.append(o); }   // 悬停才有的残影
-          for (let k = tier === 4 ? 2 : 1; k < (tier === 4 ? 4 : 3); k++) w.append(hot(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨")));
-        }
-        if (tier >= 2) w.append(hot(mk("fl-glow")));                                   // 悬停才有的光晕
-        if (tier === 4) { w.append(hot(mk("fl-ring2"))); w.append(hot(mk("fl-wave"))); w.append(hot(mk("fl-wave w2"))); }
-      }
+  function buildAvatarFx(container, tier, round, article) {
+    if (round) {
+      const w = mk(`fl-avx ax${tier}`);
+      const orbit = mk("fl-orbit"); orbit.append(mk("fl-orbit-i", AV_EMOJI[tier])); w.append(orbit);
+      container.append(w);
     }
-    container.append(w);
-    // 鼠标放到头像(含它外面的小图标)上,立刻显示这条推文的流速信息
+    // 鼠标放到头像(含小图标)上,立刻显示这条推文的流速信息
     if (!container.dataset.flHover) {
       container.dataset.flHover = "1";
       container.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(container, flowCardHtml(d)); });
@@ -595,8 +565,7 @@
     if (!container) return;
     const tier = flowTier.get(article);
     const want = settings.avatarFx && tier >= 0 ? tier : -1;   // 每一档都有(慢档低调,快档华丽);只有没有流速标的推文没有
-    const level = ["quiet", "standard", "lively"].includes(settings.avatarLevel) ? settings.avatarLevel : "standard";
-    const sig = `${want}|${level}`;
+    const sig = String(want);
     const ring = container.querySelector(":scope > .fl-ring");
     if (want < 0) { if (ring) removeAvatarFx(container); return; }
     if (ring && ring.dataset.flTier === sig) {
@@ -612,13 +581,13 @@
     const shape = roundness(container);               // 读不到就按圆形(绝大多数是个人头像),稍后补判
     const round = shape !== false;
     if (ring) removeAvatarFx(container);
-    const el = mk(`fl-ring r${want} lv-${level}` + (round ? " round" : " square"));
+    const el = mk(`fl-ring r${want}` + (round ? " round" : " square"));
     el.dataset.flTier = sig;
     el.dataset.flShape = shape === null ? "?" : round ? "r" : "s";
     container.append(el);
-    // 角标只给方形头像(它不绕圈);圆形头像已经有绕圈的小角色,再放角标就是两只火箭了
+    // 角标只给方形头像(它不转);圆形头像已经有沿环跑的小图标
     if (want >= 3 && !round) container.append(mk("fl-ring-badge", want === 4 ? "⚡" : "🚀"));
-    buildAvatarFx(container, want, round, article, level);
+    buildAvatarFx(container, want, round, article);
   }
 
   function cleanup() {

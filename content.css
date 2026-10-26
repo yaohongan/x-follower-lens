@@ -177,84 +177,41 @@
   .fl-flow.fl-fx::after { opacity: 0.7; }
 }
 
-/* ========== 头像特效(按这条推文的流速)==========
-   每一档一个"小角色"绕着头像跑,身后拖着残影,越快跑得越疯:🐢 20 秒一圈 → 🚲 6 秒 → 🛵 3 秒 → 🚀 1.8 秒(彗星尾巴)→ ⚡ 1 秒(双层霓虹 + 冲击波)。
-   性能:全部动画只用 transform / opacity(合成线程)。 */
+/* ========== 头像速度环(按这条推文的流速)==========
+   一圈彩色彗星环 + 一个沿环跑的小图标,转速就是流速:🐢 9 秒一圈 → 🚲 4.5 秒 → 🛵 2.8 秒 → 🚀 1.6 秒 → ⚡ 0.9 秒。
+   性能:动画只用 transform,屏幕外的推文会暂停。方形头像(企业号)不转,只留静态圈和角标。 */
 .fl-ring {
-  position: absolute; inset: -6px; padding: 3px; pointer-events: none; z-index: 3; box-sizing: border-box;
+  position: absolute; inset: -4px; padding: 2.5px; pointer-events: none; z-index: 3; box-sizing: border-box;
+  --orb: 4.5s; --tail: rgba(96, 165, 250, 0.55); --head: #1d9bf0;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;      /* 只留中间镂空的一圈 */
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 90deg, var(--tail) 240deg, var(--head) 360deg);
+  will-change: transform; animation: fl-spin var(--orb) linear infinite;
 }
 .fl-ring.round { border-radius: 50%; }
-.fl-ring.square { border-radius: 14%; }
-/* 🐢 灰色虚线圈  🚲 蓝色双色虚线圈  🛵 绿圈 + 呼吸 */
-.fl-ring.r0 { padding: 2px; background: repeating-conic-gradient(#8b929a 0 12deg, transparent 12deg 24deg); }
-.fl-ring.r1 { padding: 3px; background: repeating-conic-gradient(#60a5fa 0 20deg, #1d9bf0 20deg 30deg); }
-.fl-ring.r2 { padding: 3px; background: linear-gradient(135deg, #34d399, #10b981); will-change: opacity; animation: fl-glow-op 1.6s ease-in-out infinite; }
-/* 🚀 彗星:光弧有渐隐的尾巴,头在最上面;和绕圈的火箭同速同相,火箭就骑在彗星头上 */
-.fl-ring.r3 {
-  padding: 4px;
-  background: conic-gradient(from 0deg, rgba(255,149,0,0) 0deg, rgba(255,149,0,0) 100deg, rgba(255,149,0,0.6) 230deg, #ff5a1f 320deg, #ffd60a 360deg);
-  will-change: transform; animation: fl-spin 1.8s linear infinite;
-}
-/* ⚡ 外圈:粉紫青霓虹快转(内圈在 .fl-ring2 里反向转) */
-.fl-ring.r4 { padding: 4px; background: conic-gradient(#ff2d95, #8b5cf6, #06b6d4, #ff2d95); will-change: transform; animation: fl-spin 1.1s linear infinite; }
-.fl-ring.square.r3, .fl-ring.square.r4 { animation: none; }   /* 方形头像转起来难看,只保留静态渐变 */
+.fl-ring.square { border-radius: 14%; animation: none; will-change: auto; }
+.fl-ring.r0 { --orb: 9s;   padding: 2px;   --tail: rgba(154, 160, 166, 0.5); --head: #9aa0a6; }
+.fl-ring.r1 { --orb: 4.5s; padding: 2.5px; --tail: rgba(96, 165, 250, 0.55); --head: #1d9bf0; }
+.fl-ring.r2 { --orb: 2.8s; padding: 3px;   --tail: rgba(52, 211, 153, 0.6);  --head: #10b981; }
+.fl-ring.r3 { --orb: 1.6s; padding: 3.5px; --tail: rgba(255, 149, 0, 0.65);  --head: #ffd60a; }
+.fl-ring.r4 { --orb: 0.9s; padding: 4px; background: conic-gradient(#ff2d95, #8b5cf6, #06b6d4, #ff2d95); }
 .fl-ring-badge {
   position: absolute; top: -10px; right: -10px; z-index: 4; pointer-events: none;
   width: 20px; height: 20px; line-height: 20px; text-align: center; font-size: 13px; border-radius: 50%;
   background: var(--fl-bg, #fff); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
-
-/* 特效容器:和光环同一个框 */
-.fl-avx { position: absolute; inset: -6px; pointer-events: none; z-index: 3; --orb: 6s; }
-.fl-avx.ax0 { --orb: 20s; } .fl-avx.ax1 { --orb: 6s; } .fl-avx.ax2 { --orb: 3s; } .fl-avx.ax3 { --orb: 1.8s; } .fl-avx.ax4 { --orb: 1s; }
-/* 光晕:静态的 box-shadow 放在自己的元素上,只让透明度脉冲 */
-.fl-glow { position: absolute; inset: 4px; border-radius: 50%; opacity: 0.5; will-change: opacity; animation: fl-glow-op 1.6s ease-in-out infinite; }
-.fl-avx.square .fl-glow { border-radius: 14%; }
-.fl-avx.ax2 .fl-glow { box-shadow: 0 0 10px 2px rgba(16, 185, 129, 0.8); }
-.fl-avx.ax3 .fl-glow { box-shadow: 0 0 16px 5px rgba(255, 100, 20, 0.9); animation-duration: 1s; }
-.fl-avx.ax4 .fl-glow { box-shadow: 0 0 18px 6px rgba(6, 182, 212, 0.9), 0 0 10px 3px rgba(255, 45, 149, 0.8); animation-duration: 0.7s; }
-/* 轨道:整体匀速转;上面的小角色反向转同样的时间,所以始终是正的 */
+/* 沿环跑的小图标:和环同速同相,正好骑在彗星头上;自己反向转同样的圈数,图标始终是正的 */
+.fl-avx { position: absolute; inset: -4px; pointer-events: none; z-index: 3; }
+.fl-avx.ax0 { --orb: 9s; } .fl-avx.ax1 { --orb: 4.5s; } .fl-avx.ax2 { --orb: 2.8s; } .fl-avx.ax3 { --orb: 1.6s; } .fl-avx.ax4 { --orb: 0.9s; }
 .fl-orbit { position: absolute; inset: 0; pointer-events: none; will-change: transform; animation: fl-spin var(--orb) linear infinite; }
 .fl-orbit-i {
-  position: absolute; top: -11px; left: 50%; width: 22px; height: 22px; margin-left: -11px; text-align: center; border-radius: 50%;
-  font-size: 15px; line-height: 22px; background: var(--fl-bg, #fff); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
-  pointer-events: auto; cursor: default;                              /* 鼠标放上去能触发头像上的信息卡 */
-  will-change: transform; animation: fl-spin var(--orb) linear infinite reverse;
+  position: absolute; left: 50%; top: -7px; width: 14px; height: 14px; margin-left: -7px; font-size: 12px; line-height: 14px; text-align: center;
+  pointer-events: auto; will-change: transform; animation: fl-spin var(--orb) linear infinite reverse; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.45));
 }
-.fl-avx.ax3 .fl-orbit-i, .fl-avx.ax4 .fl-orbit-i { top: -13px; width: 26px; height: 26px; margin-left: -13px; font-size: 18px; line-height: 26px; }
-.fl-avx.ax3 .fl-orbit-i { box-shadow: 0 0 8px 2px rgba(255, 140, 30, 0.9); }
-.fl-avx.ax4 .fl-orbit-i { box-shadow: 0 0 9px 2px rgba(6, 182, 212, 1); }
-/* 残影:同一条轨道,相位晚一点(正的延迟 = 落在后面),越后越淡越小,没有圆底 */
-.fl-orbit.g1 .fl-orbit-i, .fl-orbit.g2 .fl-orbit-i { background: transparent; box-shadow: none; pointer-events: none; font-size: 12px; }
-.fl-orbit.g1 { animation-delay: calc(var(--orb) * 0.035); } .fl-orbit.g1 .fl-orbit-i { opacity: 0.5; animation-delay: calc(var(--orb) * 0.035); }
-.fl-orbit.g2 { animation-delay: calc(var(--orb) * 0.07); }  .fl-orbit.g2 .fl-orbit-i { opacity: 0.25; animation-delay: calc(var(--orb) * 0.07); }
-/* ⚡ 反向的内圈 + 两道冲击波 */
-.fl-ring2 {
-  position: absolute; inset: 4px; padding: 3px; box-sizing: border-box; border-radius: 50%;
-  background: conic-gradient(#06b6d4, #ff2d95, #8b5cf6, #06b6d4); will-change: transform; animation: fl-spin 1.9s linear infinite reverse;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
-}
-.fl-wave {
-  position: absolute; inset: 0; border-radius: 50%; border: 3px solid rgba(6, 182, 212, 0.9); box-sizing: border-box;
-  opacity: 0; will-change: transform, opacity; animation: fl-wave 1.6s ease-out infinite;
-}
-.fl-wave.w2 { border-color: rgba(255, 45, 149, 0.85); animation-delay: 0.8s; }
-/* ✨ 星星 / ⚡ 火花:在头像四周错开着闪 */
-.fl-sp { position: absolute; font-size: 13px; line-height: 13px; opacity: 0; will-change: opacity, transform; animation: fl-twinkle 1.4s ease-in-out infinite; }
-.fl-sp.s0 { top: -13px; right: 2px; }
-.fl-sp.s1 { bottom: -12px; left: -6px; animation-delay: 0.45s; }
-.fl-sp.s2 { top: 34%; right: -14px; animation-delay: 0.9s; }
-.fl-sp.s3 { top: 28%; left: -14px; animation-delay: 0.7s; }
-
+.fl-avx.ax3 .fl-orbit-i, .fl-avx.ax4 .fl-orbit-i { top: -8px; width: 16px; height: 16px; margin-left: -8px; font-size: 14px; line-height: 16px; }
 @keyframes fl-spin { to { transform: rotate(360deg); } }
-@keyframes fl-wave { 0% { transform: scale(1); opacity: 0.85; } 100% { transform: scale(2.1); opacity: 0; } }
-@keyframes fl-twinkle { 0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); } 50% { opacity: 1; transform: scale(1.2) rotate(30deg); } }
-/* 系统开了"减少动态效果":全部静止(小角色停在最上面),星星、残影和冲击波不显示 */
 @media (prefers-reduced-motion: reduce) {
-  .fl-ring, .fl-ring2, .fl-orbit, .fl-orbit-i, .fl-glow { animation: none !important; }
-  .fl-sp, .fl-wave, .fl-orbit.g1, .fl-orbit.g2 { display: none; }
+  .fl-ring, .fl-orbit, .fl-orbit-i { animation: none !important; }
 }
 
 /* 替换别的插件的流速标:这条推文有我们的流速标时,把别人的隐藏掉(visibility 不影响布局,别人的元素还在,只是看不见)。
@@ -263,43 +220,5 @@ html.fl-hide-foreign article:has(.fl-flow) :is([class*="sopilot-x-velocity-host"
 #fl-tip .fl-tip-n { margin-top: 4px; font-size: 11.5px; color: rgb(113, 118, 123); }
 
 /* 在屏幕外的推文(已装饰好,但此刻看不到)暂停所有动画:不占样式/合成的时间 */
-article.fl-paused .fl-ring, article.fl-paused .fl-ring2, article.fl-paused .fl-avx *,
+article.fl-paused .fl-ring, article.fl-paused .fl-avx *,
 article.fl-paused .fl-fx .fl-emo, article.fl-paused .fl-fx .fl-fxbg::before, article.fl-paused .fl-fx .fl-fxbg::after, article.fl-paused .fl-fx::after { animation-play-state: paused !important; }
-
-/* ========== 特效强度:安静 / 标准(默认)/ 热闹 ==========
-   热闹 = 上面那套全开(圆底小角色、残影、光晕、冲击波)。下面是"安静"和"标准"对它的收敛。 */
-/* 圈:安静和标准都更细、离头像更近 */
-.fl-ring.lv-quiet, .fl-ring.lv-standard { inset: -4px; }
-.fl-ring.lv-quiet { animation: none !important; will-change: auto; }                 /* 安静:圈是死的 */
-.fl-ring.lv-quiet.r0, .fl-ring.lv-standard.r0 { padding: 1.5px; }
-.fl-ring.lv-quiet.r1, .fl-ring.lv-standard.r1 { padding: 2px; }
-.fl-ring.lv-quiet.r2 { padding: 2px; }
-.fl-ring.lv-standard.r2 { padding: 2.5px; }
-.fl-ring.lv-quiet.r3 { padding: 2.5px; }
-.fl-ring.lv-standard.r3 { padding: 3px; animation-duration: 2.6s; }                  /* 标准:🚀 彗星慢一点转 */
-.fl-ring.lv-quiet.r4 { padding: 3px; }
-.fl-ring.lv-standard.r4 { padding: 3px; animation-duration: 1.8s; }
-.fl-avx.lv-quiet, .fl-avx.lv-standard { inset: -4px; }
-
-/* 小图标(静态):11px,不垫圆底,只有一点点阴影让它在任何头像上都看得清 */
-.fl-pin { position: absolute; font-size: 11px; line-height: 11px; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.4)); }
-.fl-avx.ax0 .fl-pin, .fl-avx.ax3 .fl-pin, .fl-avx.ax4 .fl-pin { top: -7px; right: -5px; }
-.fl-avx.ax1 .fl-pin, .fl-avx.ax2 .fl-pin { bottom: -7px; right: -5px; }
-/* 🐢 龟速:头顶飘一个 💤,一飘一散(只用 transform / opacity) */
-.fl-zzz { position: absolute; top: -9px; right: -7px; font-size: 12px; line-height: 12px; opacity: 0; will-change: transform, opacity; animation: fl-zzz 3.2s ease-in-out infinite; }
-/* 🛵 小电驴:左下角飘出一缕尾气 */
-.fl-puff { position: absolute; bottom: -5px; left: -8px; font-size: 11px; line-height: 11px; opacity: 0; will-change: transform, opacity; animation: fl-puff 2.4s ease-out infinite; }
-@keyframes fl-zzz { 0% { opacity: 0; transform: translate(0, 2px) scale(0.7); } 40% { opacity: 0.95; } 100% { opacity: 0; transform: translate(3px, -6px) scale(1.1); } }
-@keyframes fl-puff { 0% { opacity: 0.85; transform: translateX(0) scale(0.6); } 100% { opacity: 0; transform: translateX(-7px) scale(1.2); } }
-
-/* 标准档里,绕圈的小角色小一号、不垫圆底 */
-.fl-avx.lv-standard.ax3 { --orb: 2.6s; } .fl-avx.lv-standard.ax4 { --orb: 1.8s; }
-.fl-avx.lv-standard .fl-orbit-i { top: -8px; width: 14px; height: 14px; margin-left: -7px; font-size: 12px; line-height: 14px; background: transparent; box-shadow: none; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.45)); }
-.fl-avx.lv-standard.ax3 .fl-orbit-i { box-shadow: none; } .fl-avx.lv-standard.ax4 .fl-orbit-i { box-shadow: none; width: 14px; height: 14px; margin-left: -7px; top: -8px; font-size: 12px; line-height: 14px; }
-.fl-avx.lv-standard .fl-orbit.g1 .fl-orbit-i, .fl-avx.lv-standard .fl-orbit.g2 .fl-orbit-i { filter: none; font-size: 11px; }
-.fl-avx.lv-standard .fl-sp { font-size: 10px; line-height: 10px; }
-
-/* 标准档的"悬停才展开":这些元素平时隐藏、动画暂停;鼠标放到头像上才出现并开始动 */
-.fl-avx.lv-standard .fl-hot { visibility: hidden; animation-play-state: paused; }
-[data-testid^="UserAvatar-Container-"]:hover > .fl-avx.lv-standard .fl-hot { visibility: visible; animation-play-state: running; }
-@media (prefers-reduced-motion: reduce) { .fl-zzz, .fl-puff { animation: none !important; opacity: 0.8; } }
