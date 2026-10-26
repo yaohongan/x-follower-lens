@@ -13,9 +13,12 @@ data=json.dumps({"data":[tweet(1,big,100000,6000),tweet(2,tight,100000,200),big,
 def art(h,rowW): return f'<article data-testid="tweet"><div style="display:flex;flex-direction:column;width:{rowW}px"><div style="display:flex;flex-direction:row;width:{rowW}px"><div style="display:flex;flex:1 1 auto;min-width:0"><div style="display:flex;flex-direction:column;min-width:0"><div data-testid="User-Name" style="display:flex;min-width:0;font:15px sans-serif"><div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a role="link" href="/{h}">{h} Verified Name</a></div><div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:4px"><a role="link" href="/{h}">@{h}</a><span> · 1h</span></div></div></div></div><span style="flex:none;width:70px">544/h</span></div></div></article>'
 cell=lambda h:f'<div data-testid="UserCell" role="button"><div><div><a href="/{h}" role="link"><div dir="ltr"><span>{h}</span></div></a></div><div><a href="/{h}" role="link"><div dir="ltr"><span>@{h}</span></div></a></div></div></div>'
 HTML=f'<!doctype html><html><body style="margin:30px;font-family:sans-serif"><div id=r></div><div id=c></div><div data-testid="sidebarColumn"><div id=s></div></div><script>var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/Home");x.onload=function(){{document.getElementById("r").innerHTML={json.dumps(art("bigv",700)+art("tighthandle",360))};document.getElementById("c").innerHTML={json.dumps(cell("farm")+cell("bigv"))};document.getElementById("s").innerHTML={json.dumps(cell("farm"))};}};x.send();</script></body></html>'
+import subprocess
 ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)
+_r=subprocess.run(["node",os.path.join(EXT,"tests","check_syntax.js")],capture_output=True,text=True)
+check("所有脚本按浏览器规则编译通过",_r.returncode==0,_r.stdout.strip().replace("\n"," | "))
 with sync_playwright() as p:
     ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":900,"height":600})
     ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))

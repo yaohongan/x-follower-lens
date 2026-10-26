@@ -367,7 +367,7 @@
     chip.append(e, document.createTextNode(text.slice(emoji.length)));
   }
 
-  const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h.toFixed(1) + " 小时");
+  const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h < 48 ? h.toFixed(1) + " 小时" : Math.round(h / 24) + " 天");
 
   const flowRechecked = new WeakSet();   // 每条推文只在放好后复查一次位置(别的插件的浮层可能晚到)
 
@@ -376,11 +376,14 @@
     const id = tweetIdOf(article);
     const info = id && tweetInfo.get(id);
     const author = info && users.get(info.author);
-    const flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
+    let flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
+    // 超过 24 小时的老推文只给"发布以来的平均速度",而且只有 🛵 小电驴以上才显示:
+    // 否则个人主页上每条老推文都挂个"龟速",又吵又得罪创作者
+    if (flow && flow.old && flow.tier < 2) flow = null;
     flowTier.set(article, flow ? flow.tier : -1);
     if (!flow) { if (old) old.remove(); return; }
 
-    const trend = P.trendOf(info.obs, flow.rate);
+    const trend = flow.old ? null : P.trendOf(info.obs, flow.rate);
     const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
     // 稳态快路径:内容没变就直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排,是最大的开销)
     const sig0 = `${P.fmtRate(flow.rate)}|${flow.tier}|${arrow}|${settingsVer}`;
@@ -408,7 +411,7 @@
     chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
     chip.dataset.flSig0 = sig0;
     const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
-      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)})`];
+      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)}${flow.old ? ",这是发布以来的平均速度" : ""})`];
     if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
     chip.title = lines.join("\n");
 
@@ -452,13 +455,21 @@
   }
 
   // ----- 趣味模式:按这条推文的流速,给作者头像外面叠一圈光环(🚲 以下不加,免得太吵)-----
-  function isRound(container) {
-    // 个人头像是圆的,企业号头像是方的:往上找带大圆角的祖先
-    for (let e = container.querySelector("img"); e && e !== container.parentElement; e = e.parentElement) {
+  // 头像是圆的还是方的:true 圆 / false 方 / null 还读不到(图片没加载完,圆角样式还没落下来)
+  // 个人头像圆角是 9999px,企业号的方头像是几 px 的小圆角。
+  function roundness(container) {
+    let e = container.querySelector("img") || container, up = 0, passed = false;
+    while (e && up <= 4) {
       const r = getComputedStyle(e).borderRadius;
-      if (r === "9999px" || r.includes("%")) return true;
+      if (r && r !== "0px") {
+        const px = parseFloat(r);
+        return r.includes("%") || px >= 20;
+      }
+      if (e === container) passed = true;
+      if (passed) up++;
+      e = e.parentElement;
     }
-    return false;
+    return null;
   }
 
   function decorateAvatar(article) {
@@ -468,13 +479,23 @@
     const want = settings.avatarFx && tier >= 2 ? tier : -1;
     const ring = container.querySelector(":scope > .fl-ring");
     if (want < 0) { if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); } return; }
-    if (ring && ring.dataset.flTier === String(want)) return;   // 稳态:档位没变就直接返回(isRound 要读样式,只在创建时算)
-    const round = isRound(container);
+    if (ring && ring.dataset.flTier === String(want)) {
+      // 稳态快路径。只有"形状还没读到"的光环,在前几次渲染里补判一次(之后不再读样式)
+      if (ring.dataset.flShape === "?" && (+ring.dataset.flChecks || 0) < 4) {
+        ring.dataset.flChecks = String((+ring.dataset.flChecks || 0) + 1);
+        const sh = roundness(container);
+        if (sh !== null) { ring.dataset.flShape = sh ? "r" : "s"; ring.classList.toggle("round", sh); ring.classList.toggle("square", !sh); }
+      }
+      return;
+    }
+    const shape = roundness(container);               // 读不到就按圆形(绝大多数是个人头像),稍后补判
+    const round = shape !== false;
     const sig = String(want);
     if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); }
     const el = document.createElement("span");
     el.className = `fl-ring r${want}` + (round ? " round" : " square");
     el.dataset.flTier = sig;
+    el.dataset.flShape = shape === null ? "?" : round ? "r" : "s";
     container.append(el);
     if (want >= 3) {
       const b = document.createElement("span");

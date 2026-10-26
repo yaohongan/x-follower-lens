@@ -10,9 +10,9 @@ def ago(h): return time.strftime("%a %b %d %H:%M:%S +0000 %Y", time.gmtime(now-h
 def user(h,fol): return {"__typename":"User","rest_id":h,"core":{"screen_name":h,"name":h,"created_at":"Mon Jan 01 00:00:00 +0000 2016"},"relationship_counts":{"followers":fol,"following":100}}
 def tweet(i,u,views,age): return {"__typename":"Tweet","rest_id":str(i),"views":{"count":str(views)},"legacy":{"favorite_count":1,"retweet_count":0,"reply_count":0,"quote_count":0,"created_at":ago(age)},"core":{"user_results":{"result":u}}}
 # id, 账号, 粉丝, 浏览量, 发布几小时前, 头部整行宽度, 操作栏"浏览量"格宽度
-cases=[(1,"rocketguy",100,5000,2,518,111),(2,"turtleguy",100,20,2,518,111),(3,"oldguy",100,9999,30,518,111),
+cases=[(1,"rocketguy",100,5000,2,518,111),(2,"turtleguy",100,20,2,518,111),(3,"oldguy",100,20,30,518,111),
        (4,"bigacct",50000,900,2,518,111),(5,"narrowbar",100,5000,2,518,60),(6,"fresh",100,900,0.05,518,111),
-       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111)]
+       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111),(9,"oldfast",100,100000,30,518,111),(10,"ancient",100,100000,800,518,111)]
 data=json.dumps({"data":[tweet(i,user(h,f),v,a) for i,h,f,v,a,rw,w in cases]})
 # 复刻真实结构:头部整行(space-between) = [名字区 > 列 > User-Name] + [别的插件的小标] + [菜单区];底部操作栏第 4 格放浏览量链接
 def art(i,h,rw,w):
@@ -70,7 +70,9 @@ with sync_playwright() as p:
     check("自动:头部右侧被别的插件浮层占着的推文,改放底部浏览量旁",s[0] and s[0]["inBar"] and not s[0]["inHeader"],(s[0] or {}).get("t"))
     check("5000次/2h=火箭(底部:图标+数字,放不下就只留图标)",s[0] and "🚀" in s[0]["t"],s[0] and s[0]["t"])
     check("20次/2h=龟速",s[1] and "龟速" in s[1]["t"])
-    check("发布 30 小时:不显示",s[2] is None)
+    check("发布 30 小时但很慢(龟速):不显示",s[2] is None)
+    check("发布 30 小时但很快:显示,并说明是发布以来的平均速度,不带趋势箭头",s[8] and "平均速度" in s[8]["title"] and not any(a in s[8]["t"] for a in "↗↘"),s[8])
+    check("发布超过 30 天:不显示",s[9] is None)
     check("900次/2h(粉丝5万,绝对)=小电驴;头部放得下时:名称+数字",s[3] and "小电驴" in s[3]["t"] and "/h" in s[3]["t"],s[3] and s[3]["t"])
     check("发布不足 15 分钟:不显示",s[5] is None)
     check("每条推文只有一个流速标",all(x["cnt"]==1 for x in s if x))
