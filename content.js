@@ -424,17 +424,33 @@
     el.addEventListener("mouseleave", hideTip);
   }
 
-  // 贴靠:流速标放在头部时,让它的右边缘紧贴右边图标组(Grok、菜单)。X 的头部图标是陆续渲染出来的,
-  // 所以放好之后还要再量几次;空白多了就往右推,被挤了就往回收。只改自己的 margin-left,不碰 X 的元素。
+  // 贴靠:流速标放在头部时,让它的右边缘紧贴头部右边"看得见的"按钮(Grok、菜单)。
+  // 不依赖 X 的容器结构:直接量按钮的实际位置,再用相对偏移(position:relative; left)挪过去。相对偏移不影响布局。
+  // 注意要跳过 visibility:hidden 的按钮:被我们隐藏的别家流速标仍然占着位置,不能拿它当对齐目标。
+  // X 的头部按钮是陆续渲染出来的,所以放好之后还会再量几次。
   function snapRight(chip) {
     if (!chip || !chip.isConnected || chip.dataset.flPlace === "b") return;
-    const nx = chip.nextElementSibling;
-    if (!nx) return;
-    const ic = nx.querySelector("button, [role=button], a, svg") || nx;
-    const gap = Math.round(ic.getBoundingClientRect().left - chip.getBoundingClientRect().right - 8);
-    if (Math.abs(gap) <= 4 || gap > 700) return;
-    const cur = parseFloat(chip.style.marginLeft) || 0;
-    chip.style.marginLeft = `${Math.max(0, cur + gap)}px`;
+    const art = chip.closest("article");
+    const un = art && art.querySelector('[data-testid="User-Name"]');
+    if (!un) return;
+    const ur = un.getBoundingClientRect(), cr = chip.getBoundingClientRect();
+    let L = Infinity;
+    for (const b of art.querySelectorAll('button, [role="button"]')) {
+      if (chip.contains(b) || un.contains(b)) continue;
+      const r = b.getBoundingClientRect();
+      if (!r.width || !r.height || r.top < ur.top - 12 || r.top > ur.bottom + 4 || r.left <= ur.left + 60) continue;
+      if (r.left >= L) continue;
+      const cs = getComputedStyle(b);
+      if (cs.visibility === "hidden" || cs.opacity === "0" || cs.display === "none") continue;
+      L = r.left;
+    }
+    if (L === Infinity) return;
+    let delta = Math.round(L - 8 - cr.right);
+    if (Math.abs(delta) <= 3 || delta > 900 || delta < -900) return;
+    if (cr.left + delta < ur.right + 4) delta = Math.round(ur.right + 4 - cr.left);   // 绝不压到名字
+    if (Math.abs(delta) <= 3) return;
+    chip.style.position = "relative";
+    chip.style.left = `${(parseFloat(chip.style.left) || 0) + delta}px`;
   }
 
   function decorateFlow(article) {
@@ -644,11 +660,17 @@
 
   function loadAvatar(handle) {
     return new Promise((resolve) => {
-      const img0 = document.querySelector(`[data-testid="UserAvatar-Container-${handle}"] img`) || document.querySelector('a[href$="/photo"] img');
-      const src = img0 && img0.src && img0.src.replace(/_(normal|bigger|200x200|reasonably_small)\./, "_400x400.");
+      const u = users.get(handle);
+      let src = u && u.avatar;
+      if (!src) {   // 接口数据里没有:退回页面上的头像(用户名大小写不敏感地找)
+        const cont = [...document.querySelectorAll('[data-testid^="UserAvatar-Container-"]')].find((e) => e.dataset.testid.slice(20).toLowerCase() === handle);
+        const img0 = (cont && cont.querySelector("img")) || document.querySelector('a[href$="/photo"] img');
+        src = img0 && img0.src;
+      }
+      src = src && src.replace(/_(normal|bigger|200x200|reasonably_small|mini)(\.[a-z]+)$/i, "_400x400$2");
       if (!src) return resolve(null);
       const img = new Image(); img.crossOrigin = "anonymous";
-      const t = setTimeout(() => resolve(null), 4000);
+      const t = setTimeout(() => resolve(null), 6000);
       img.onload = () => { clearTimeout(t); resolve(img); };
       img.onerror = () => { clearTimeout(t); resolve(null); };
       img.src = src;

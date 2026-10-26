@@ -59,6 +59,7 @@
       following: num(following),
       tweets: tc.tweets ?? legacy.statuses_count ?? null,
       createdAt: core.created_at || legacy.created_at || null,
+      avatar: (u.avatar && u.avatar.image_url) || legacy.profile_image_url_https || u.profile_image_url_https || "",
       followedBy: rp.followed_by === true,   // 对方关注了我
       iFollow: rp.following === true,        // 我关注了对方
     };

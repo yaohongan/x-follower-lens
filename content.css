@@ -92,8 +92,6 @@
 
 /* 头部右侧:靠右、紧挨菜单区(Grok 图标和"…") */
 .fl-flow.fl-flow-h { margin-left: auto; margin-right: 8px; }
-/* 详情页右边的图标组自己也带 margin-left:auto,空白会被两边平分,标就漂到中间。让标独占这段空白,贴着图标组 */
-.fl-flow.fl-flow-h + * { margin-left: 0 !important; flex: 0 0 auto !important; }   /* 图标组也可能 flex:1 撑满空白,让它只占自己的宽度 */
 
 /* 关注/粉丝列表里被淡化的账号:鼠标移上去恢复 */
 [data-testid="UserCell"].fl-dim { opacity: 0.45; transition: opacity 0.15s; }

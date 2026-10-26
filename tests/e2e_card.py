@@ -7,7 +7,7 @@ EXE=os.environ.get("CHROMIUM","/Users/yaohongan/Library/Caches/ms-playwright/chr
 eid="".join(chr(ord("a")+int(c,16)) for c in hashlib.sha256(EXT.encode()).hexdigest()[:32])
 now=time.time(); ago=lambda h: time.strftime("%a %b %d %H:%M:%S +0000 %Y", time.gmtime(now-h*3600))
 PNG=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
-U={"__typename":"User","rest_id":"9","core":{"screen_name":"coder","name":"代码老张","created_at":"Mon Jan 01 00:00:00 +0000 2016"},"relationship_counts":{"followers":23800,"following":310},"tweet_counts":{"tweets":5200},"profile_bio":{"description":"独立开发者,用 Cursor 和 Claude Code 写代码,AI编程每日分享"}}
+U={"__typename":"User","rest_id":"9","core":{"screen_name":"coder","name":"代码老张","created_at":"Mon Jan 01 00:00:00 +0000 2016"},"avatar":{"image_url":"https://pbs.twimg.com/profile_images/1/pic_normal.png"},"relationship_counts":{"followers":23800,"following":310},"tweet_counts":{"tweets":5200},"profile_bio":{"description":"独立开发者,用 Cursor 和 Claude Code 写代码,AI编程每日分享"}}
 def tw(i): return {"__typename":"Tweet","rest_id":str(i),"views":{"count":"20000"},"legacy":{"favorite_count":900,"retweet_count":100,"reply_count":50,"quote_count":10,"created_at":ago(5),"full_text":"cursor 写代码"},"core":{"user_results":{"result":U}}}
 data=json.dumps({"data":{"user":U,"tl":[tw(i) for i in range(1,6)]}})
 HTML='''<!doctype html><html><body style="margin:20px;font:15px sans-serif"><div id=r></div><script>addEventListener("load",function(){document.getElementById("r").innerHTML='<div><div data-testid="UserAvatar-Container-coder" style="width:80px;height:80px"><img src="/av.png" style="width:80px;height:80px"></div><div data-testid="UserName"><b>代码老张</b> @coder</div><div data-testid="UserDescription">bio</div></div>';var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/UserTweets");x.send()});</script></body></html>'''
@@ -17,7 +17,11 @@ def check(n,c,e=""):
 with sync_playwright() as p:
     ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=True,args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":900,"height":900},accept_downloads=True)
     ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))
-    ctx.route("https://x.com/av.png",lambda r:r.fulfill(status=200,content_type="image/png",body=PNG,headers={"access-control-allow-origin":"*"}))
+    ctx.route("https://x.com/av.png",lambda r:r.abort())   # 页面上的头像图拿不到,逼它用接口数据里的头像地址
+    reqs=[]
+    def pic(r):
+        reqs.append(r.request.url); r.fulfill(status=200,content_type="image/png",body=PNG,headers={"access-control-allow-origin":"*"})
+    ctx.route("https://pbs.twimg.com/**",pic)
     ctx.route("https://x.com/coder",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML))
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML.replace('data-testid="UserName"','data-testid="Other"')))
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
@@ -28,6 +32,9 @@ with sync_playwright() as p:
     info=pg.evaluate("(()=>{const c=document.querySelector('#fl-card-modal canvas');const g=c.getContext('2d');const d=g.getImageData(0,0,c.width,c.height).data;let nz=0;for(let i=0;i<d.length;i+=4*500)if(d[i]+d[i+1]+d[i+2]>60)nz++;return {w:c.width,h:c.height,nz,url:c.toDataURL('image/png')}})()")
     check("画布尺寸 1600×2360,且画了内容(不是空白)",info["w"]==1600 and info["h"]==2360 and info["nz"]>50,(info["w"],info["h"],info["nz"]))
     open(os.path.join(tempfile.gettempdir(),"shot_card.png"),"wb").write(base64.b64decode(info["url"].split(",")[1]))
+    check("头像:用接口数据里的头像地址(并换成 400x400 大图),不是首字母",any(u.endswith("pic_400x400.png") for u in reqs),reqs)
+    px=pg.evaluate("(()=>{const c=document.querySelector('#fl-card-modal canvas'),g=c.getContext('2d');const d=g.getImageData(2*(48+24+52),2*(108+75),1,1).data;return [d[0],d[1],d[2]]})()")
+    check("头像位置画的是头像本身的颜色,不是灰色首字母底(#475569)",px!=[71,85,105],px)
     with pg.expect_download() as dl: pg.click('#fl-card-modal [data-a=dl]')
     check("下载图片:文件名带账号名",dl.value.suggested_filename=="粉丝透镜-coder.png",dl.value.suggested_filename)
     pg.keyboard.press("Escape"); pg.wait_for_timeout(300)
