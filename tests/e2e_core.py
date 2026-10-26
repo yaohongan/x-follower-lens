@@ -12,7 +12,7 @@ big=user("bigv",520000,300,"Mon Jan 01 00:00:00 +0000 2016",True,True); farm=use
 data=json.dumps({"data":[tweet(1,big,100000,6000),tweet(2,tight,100000,200),big,farm]})
 def art(h,rowW): return f'<article data-testid="tweet"><div style="display:flex;flex-direction:column;width:{rowW}px"><div style="display:flex;flex-direction:row;width:{rowW}px"><div style="display:flex;flex:1 1 auto;min-width:0"><div style="display:flex;flex-direction:column;min-width:0"><div data-testid="User-Name" style="display:flex;min-width:0;font:15px sans-serif"><div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a role="link" href="/{h}">{h} Verified Name</a></div><div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:4px"><a role="link" href="/{h}">@{h}</a><span> · 1h</span></div></div></div></div><span style="flex:none;width:70px">544/h</span></div></div></article>'
 cell=lambda h:f'<div data-testid="UserCell" role="button"><div><div><a href="/{h}" role="link"><div dir="ltr"><span>{h}</span></div></a></div><div><a href="/{h}" role="link"><div dir="ltr"><span>@{h}</span></div></a></div></div></div>'
-HTML=f'<!doctype html><html><body style="margin:30px;font-family:sans-serif"><div id=r></div><div id=c></div><div data-testid="sidebarColumn"><div id=s></div></div><script>var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/Home");x.onload=function(){{document.getElementById("r").innerHTML={json.dumps(art("bigv",700)+art("tighthandle",360))};document.getElementById("c").innerHTML={json.dumps(cell("farm")+cell("bigv"))};document.getElementById("s").innerHTML={json.dumps(cell("farm"))};}};x.send();</script></body></html>'
+HTML=f'<!doctype html><html><body style="margin:30px;font-family:sans-serif"><div id=r></div><div id=c></div><div data-testid="sidebarColumn"><div id=s></div></div><script>var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/HomeTimeline");x.onload=function(){{document.getElementById("r").innerHTML={json.dumps(art("bigv",700)+art("tighthandle",360))};document.getElementById("c").innerHTML={json.dumps(cell("farm")+cell("bigv"))};document.getElementById("s").innerHTML={json.dumps(cell("farm"))};}};x.send();</script></body></html>'
 import subprocess
 ok=True
 def check(n,c,e=""):
@@ -51,6 +51,11 @@ with sync_playwright() as p:
     pop.click("#clearHist"); pop.wait_for_timeout(400); check("清除记录",pop.inner_text("#histCount")=="0")
     pop.click('header .sw.big input'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1000)
     check("总开关关闭:徽标和单独一行都清除",pg.evaluate("document.querySelectorAll('.fl-badge,.fl-line,.fl-flow').length")==0)
+    # 总开关关着时,新的数据包不再被解析(真正不干活,方便用户 A/B 对比)
+    perf=lambda: json.loads(pg.evaluate("document.documentElement.dataset.flPerf||'{}'")).get("packets",0)
+    pg.wait_for_timeout(2300); p0=perf()
+    pg.evaluate("(()=>{const x=new XMLHttpRequest();x.open('GET','/i/api/graphql/a/UserTweets');x.send()})()"); pg.wait_for_timeout(2400)
+    check("总开关关闭时:新数据包直接丢弃,不解析(数据包计数不增加)",perf()==p0,(p0,perf()))
     check("无页面报错",not errs,errs)
     ctx.close()
 print("ALL PASS" if ok else "SOME FAIL")

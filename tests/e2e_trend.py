@@ -12,7 +12,7 @@ state={"views":(1000,20000)}   # (推文1, 推文2)
 def api(r):
     r.fulfill(status=200,content_type="application/json",body=json.dumps({"data":[tw(1,state["views"][0]),tw(2,state["views"][1])]}))
 def art(i): return f'<article data-testid="tweet" style="position:relative;width:548px"><div style="display:flex;flex-direction:column;width:548px"><div style="display:flex;justify-content:space-between;width:518px"><div style="display:flex"><div style="display:flex;flex-direction:column"><div data-testid="User-Name" style="display:flex"><div><a role="link" href="/trendy">trendy</a></div><div><a role="link" href="/trendy">@trendy</a><a href="/trendy/status/{i}"><time>2h</time></a></div></div></div></div><div style="display:flex;width:46px"><button>m</button></div></div><div role="group"><div><a href="/trendy/status/{i}/analytics">1</a></div></div></div></article>'
-HTML=f'<!doctype html><html><body style="margin:30px"><div id=r></div><script>function load(){{var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/Home");x.send()}} window.addEventListener("load",function(){{document.getElementById("r").innerHTML={json.dumps(art(1)+art(2))};load()}});</script></body></html>'
+HTML=f'<!doctype html><html><body style="margin:30px"><div id=r></div><script>function load(){{var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/HomeTimeline");x.send()}} window.addEventListener("load",function(){{document.getElementById("r").innerHTML={json.dumps(art(1)+art(2))};load()}});</script></body></html>'
 ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)

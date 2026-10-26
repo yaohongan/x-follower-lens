@@ -16,7 +16,7 @@ tweets+= [tw(20+i,rt,"RT 里全是 BTC 以太坊 defi 空投",rt=True) for i in 
 data=json.dumps({"data":tweets})
 def art(h): return f'<article data-testid="tweet" style="position:relative;width:548px"><div style="display:flex;flex-direction:column;width:548px"><div style="display:flex;justify-content:space-between;width:518px"><div style="display:flex"><div style="display:flex;flex-direction:column"><div data-testid="User-Name" style="display:flex"><div><a role="link" href="/{h}">{h}</a></div><div><a role="link" href="/{h}">@{h}</a></div></div></div></div><div style="display:flex;width:46px"><button>m</button></div></div></div></article>'
 users=["coder","videoguy","blanky","bizguy","shopper","nothing","rtguy"]
-HTML=f'<!doctype html><html><body style="margin:30px"><div id=r></div><script>addEventListener("load",function(){{document.getElementById("r").innerHTML={json.dumps("".join(art(h) for h in users))};var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/Home");x.send()}});</script></body></html>'
+HTML=f'<!doctype html><html><body style="margin:30px"><div id=r></div><script>addEventListener("load",function(){{document.getElementById("r").innerHTML={json.dumps("".join(art(h) for h in users))};var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/HomeTimeline");x.send()}});</script></body></html>'
 ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)

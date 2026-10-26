@@ -14,7 +14,7 @@ data=json.dumps({"data":[tw(i+1,h,v) for i,(h,v,rd) in enumerate(cases)]})
 def art(i,h,rd): return f'''<article data-testid="tweet" style="position:relative;width:548px;padding:20px"><div style="display:flex;gap:12px"><div data-testid="UserAvatar-Container-{h}" style="position:relative;width:40px;height:40px;flex:none"><div style="position:absolute;inset:0;overflow:hidden;{'border-radius:9999px;' if rd is True else 'border-radius:6px;' if rd is False else ''}background:#94a3b8"><img style="width:40px;height:40px" alt=""></div></div>
 <div style="display:flex;flex-direction:column;width:440px"><div style="display:flex;justify-content:space-between;width:440px"><div style="display:flex"><div style="display:flex;flex-direction:column"><div data-testid="User-Name" style="display:flex"><div><a role="link" href="/{h}">{h}</a></div><div><a role="link" href="/{h}">@{h}</a><a href="/{h}/status/{i}"><time>2h</time></a></div></div></div></div><div style="display:flex;width:46px"><button>m</button></div></div>
 <div role="group" style="display:flex"><div style="display:flex;width:111px"><a role="link" href="/{h}/status/{i}/analytics">1</a></div></div></div></div></article>'''
-HTML=f'<!doctype html><html><body style="margin:20px"><div id=r></div><script>addEventListener("load",function(){{document.getElementById("r").innerHTML={json.dumps("".join(art(i+1,h,rd) for i,(h,v,rd) in enumerate(cases)))};var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/Home");x.send()}});</script></body></html>'
+HTML=f'<!doctype html><html><body style="margin:20px"><div id=r></div><script>addEventListener("load",function(){{document.getElementById("r").innerHTML={json.dumps("".join(art(i+1,h,rd) for i,(h,v,rd) in enumerate(cases)))};var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/HomeTimeline");x.send()}});</script></body></html>'
 ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)
@@ -31,9 +31,22 @@ with sync_playwright() as p:
     pg.bring_to_front(); pg.wait_for_timeout(500)
     s=pg.evaluate(rings); print(json.dumps(s,ensure_ascii=False))
     check("🐢 龟速:灰色细圈(低调,半透明)、🚲 自行车:蓝色细圈,都没有角标",s[0] and "r0" in s[0]["cls"] and s[1] and "r1" in s[1]["cls"] and s[0]["badge"] is None and s[1]["badge"] is None and s[0]["anim"]=="none",[s[0],s[1]])
-    check("🛵 小电驴:绿色静态光环、无角标",s[2] and "r2" in s[2]["cls"] and s[2]["anim"]=="none" and s[2]["badge"] is None,s[2])
-    check("🚀 火箭:旋转光环 + 🚀 角标",s[3] and "r3" in s[3]["cls"] and "fl-spin" in s[3]["anim"] and s[3]["badge"]=="🚀",s[3])
-    check("⚡ 光速:更快的旋转霓虹圈 + ⚡ 角标",s[4] and "r4" in s[4]["cls"] and "fl-spin" in s[4]["anim"] and s[4]["badge"]=="⚡",s[4])
+    check("🛵 小电驴:绿圈 + 呼吸(只用 opacity),无角标",s[2] and "r2" in s[2]["cls"] and "fl-glow-op" in s[2]["anim"] and s[2]["badge"] is None,s[2])
+    check("🚀 火箭:彗星尾巴旋转圈;圆形头像没有角标(绕圈的火箭已经是它了)",s[3] and "r3" in s[3]["cls"] and "fl-spin" in s[3]["anim"] and s[3]["badge"] is None,s[3])
+    check("⚡ 光速:更快的旋转霓虹圈;圆形头像没有角标",s[4] and "r4" in s[4]["cls"] and "fl-spin" in s[4]["anim"] and s[4]["badge"] is None,s[4])
+    # ---- 每一档的"小角色绕着头像跑" ----
+    fx=pg.evaluate("""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('[data-testid^=UserAvatar-Container-]');const w=c.querySelector(':scope > .fl-avx');if(!w)return null;
+      const o=w.querySelector('.fl-orbit'),i=w.querySelector('.fl-orbit-i');
+      return {cls:w.className,orbit:o?getComputedStyle(o).animationName:null,orbitDur:o?getComputedStyle(o).animationDuration:null,emoji:i?i.textContent:null,iAnim:i?getComputedStyle(i).animationName:null,iDir:i?getComputedStyle(i).animationDirection:null,
+        sparks:w.querySelectorAll('.fl-sp').length,ring2:!!w.querySelector('.fl-ring2'),wave:!!w.querySelector('.fl-wave'),waveAnim:w.querySelector('.fl-wave')?getComputedStyle(w.querySelector('.fl-wave')).animationName:null,n:c.querySelectorAll(':scope > .fl-avx').length}})""")
+    check("每个头像只有一个特效容器",all(x["n"]==1 for x in fx if x))
+    check("🐢 小乌龟 40 秒绕一圈;🚲 8 秒;🛵 4 秒;🚀 2.2 秒;⚡ 1.2 秒(越快跑得越快)",[fx[k]["emoji"] for k in range(5)]==["🐢","🚲","🛵","🚀","⚡"] and [fx[k]["orbitDur"] for k in range(5)]==["40s","8s","4s","2.2s","1.2s"],[(fx[k]["emoji"],fx[k]["orbitDur"]) for k in range(5)])
+    check("小角色反向转同样的时间,始终是正的(不会倒着转晕)",all("fl-spin" in fx[k]["iAnim"] and fx[k]["iDir"]=="reverse" for k in range(5)),fx[3])
+    check("🚀 有 3 颗 ✨ 星星,⚡ 有 4 个火花;慢档没有",fx[3]["sparks"]==3 and fx[4]["sparks"]==4 and all(fx[k]["sparks"]==0 for k in (0,1,2)),[fx[k]["sparks"] for k in range(5)])
+    check("只有 ⚡ 光速有反向内圈和冲击波",fx[4]["ring2"] and fx[4]["wave"] and "fl-wave" in fx[4]["waveAnim"] and not any(fx[k]["ring2"] or fx[k]["wave"] for k in (0,1,2,3)))
+    check("方形头像(企业号):没有绕圈小角色和冲击波,不转",fx[5] and fx[5]["emoji"] is None and not fx[5]["wave"],fx[5])
+    allanim=pg.evaluate("[...document.querySelectorAll('.fl-ring,.fl-ring2,.fl-orbit,.fl-orbit-i,.fl-sp,.fl-wave')].map(e=>getComputedStyle(e).animationName)")
+    check("所有头像动画都只用 transform / opacity(不用 background-position、box-shadow)",all(n in ("none","fl-spin","fl-glow-op","fl-wave","fl-twinkle") for n in allanim),sorted(set(allanim)))
     check("圆形头像用圆环(round)",s[3] and "round" in s[3]["cls"])
     check("还读不到圆角时(图片没加载完):先按圆形画,并标记待补判",s[6] and "round" in s[6]["cls"],s[6])
     # 模拟图片加载完、圆角样式落下来(这个头像其实是方的),再触发一次页面变动 → 应补判成方环
@@ -41,11 +54,12 @@ with sync_playwright() as p:
     pg.wait_for_timeout(1200)
     fixed=pg.evaluate("(()=>{const r=document.querySelectorAll('article')[6].querySelector('.fl-ring');return {cls:r.className,shape:r.dataset.flShape}})()")
     check("补判:圆角样式落下来之后,环的形状自动校正成方的",("square" in fixed["cls"]) and fixed["shape"]=="s",fixed)
-    check("方形头像用方环,且不旋转(square)",s[5] and "square" in s[5]["cls"] and s[5]["anim"]=="none",s[5])
+    check("方形头像用方环,不旋转,有角标 🚀(因为它不绕圈)",s[5] and "square" in s[5]["cls"] and s[5]["anim"]=="none" and s[5]["badge"]=="🚀",s[5])
     check("每个头像只有一个光环(重复渲染不叠加)",all(x["n"]==1 for x in s if x))
     pg.screenshot(path=os.path.join(tempfile.gettempdir(),"shot_avatar.png"))
     pg.emulate_media(reduced_motion="reduce"); pg.wait_for_timeout(300)
-    check("系统开了减少动态效果:光环不旋转",pg.evaluate(rings)[3]["anim"]=="none")
+    rmv=pg.evaluate("(()=>{const w=document.querySelectorAll('article')[4].querySelector('.fl-avx');return {ring:getComputedStyle(document.querySelectorAll('article')[4].querySelector('.fl-ring')).animationName,orbit:getComputedStyle(w.querySelector('.fl-orbit')).animationName,wave:getComputedStyle(w.querySelector('.fl-wave')).display,spark:getComputedStyle(w.querySelector('.fl-sp')).display}})()")
+    check("系统开了减少动态效果:圈、绕圈角色全部静止,星星和冲击波不显示",rmv["ring"]=="none" and rmv["orbit"]=="none" and rmv["wave"]=="none" and rmv["spark"]=="none",rmv)
     pg.emulate_media(reduced_motion="no-preference")
     pop.bring_to_front(); pop.click('input[data-key=avatarFx]'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1200)
     check("关掉:光环和角标全部消失",pg.evaluate("document.querySelectorAll('.fl-ring,.fl-ring-badge').length")==0)

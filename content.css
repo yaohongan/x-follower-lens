@@ -177,24 +177,68 @@
   .fl-flow.fl-fx::after { opacity: 0.7; }
 }
 
-/* ========== 头像光环(按这条推文的流速;每一档不一样:🐢 灰细圈、🚲 蓝细圈、🛵 绿圈、🚀 橙红旋转圈+角标、⚡ 霓虹旋转圈+角标) ========== */
+/* ========== 头像特效(按这条推文的流速)==========
+   每一档一个"小角色"绕着头像跑,越快跑得越疯:🐢 40 秒一圈 → 🚲 8 秒 → 🛵 4 秒 → 🚀 2.2 秒(带彗星尾巴)→ ⚡ 1.2 秒(双层霓虹 + 冲击波)。
+   性能:全部动画只用 transform / opacity(合成线程)。 */
 .fl-ring {
-  position: absolute; inset: -4px; padding: 3px; pointer-events: none; z-index: 3; box-sizing: border-box; will-change: transform;
+  position: absolute; inset: -4px; padding: 3px; pointer-events: none; z-index: 3; box-sizing: border-box;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;      /* 只留中间镂空的一圈 */
 }
 .fl-ring.round { border-radius: 50%; }
 .fl-ring.square { border-radius: 14%; }
-.fl-ring.r0 { padding: 1.5px; background: linear-gradient(135deg, #9ca3af, #6b7280); opacity: 0.55; }
-.fl-ring.r1 { padding: 2px; background: linear-gradient(135deg, #60a5fa, #1d9bf0); }
-.fl-ring.r2 { padding: 2px; background: linear-gradient(135deg, #34d399, #10b981); }
-.fl-ring.r3 { background: conic-gradient(#ff9500, #ff3b30, #ff9500, #ffd60a, #ff9500); animation: fl-spin 3s linear infinite; }
-.fl-ring.r4 { background: conic-gradient(#ff2d95, #8b5cf6, #06b6d4, #ff2d95); animation: fl-spin 1.6s linear infinite; }
+/* 🐢 灰色虚线圈(静态,低调)  🚲 蓝色双色虚线圈  🛵 绿圈 + 呼吸 */
+.fl-ring.r0 { padding: 1.5px; background: repeating-conic-gradient(#9ca3af 0 12deg, transparent 12deg 24deg); opacity: 0.75; }
+.fl-ring.r1 { padding: 2px; background: repeating-conic-gradient(#60a5fa 0 20deg, #1d9bf0 20deg 30deg); }
+.fl-ring.r2 { padding: 2px; background: linear-gradient(135deg, #34d399, #10b981); will-change: opacity; animation: fl-glow-op 1.6s ease-in-out infinite; }
+/* 🚀 彗星:光弧有渐隐的尾巴,头在最上面;和绕圈的火箭同速同相,火箭就骑在彗星头上 */
+.fl-ring.r3 {
+  background: conic-gradient(from 0deg, rgba(255,149,0,0) 0deg, rgba(255,149,0,0) 110deg, rgba(255,149,0,0.55) 240deg, #ff5a1f 320deg, #ffd60a 360deg);
+  will-change: transform; animation: fl-spin 2.2s linear infinite;
+}
+/* ⚡ 外圈:粉紫青霓虹快转(内圈在 .fl-ring2 里反向转) */
+.fl-ring.r4 { background: conic-gradient(#ff2d95, #8b5cf6, #06b6d4, #ff2d95); will-change: transform; animation: fl-spin 1.4s linear infinite; }
 .fl-ring.square.r3, .fl-ring.square.r4 { animation: none; }   /* 方形头像转起来难看,只保留静态渐变 */
 .fl-ring-badge {
   position: absolute; top: -9px; right: -9px; z-index: 4; pointer-events: none;
   width: 18px; height: 18px; line-height: 18px; text-align: center; font-size: 12px; border-radius: 50%;
   background: var(--fl-bg, #fff); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
+
+/* 特效容器:和光环同一个框 */
+.fl-avx { position: absolute; inset: -4px; pointer-events: none; z-index: 3; --orb: 8s; }
+.fl-avx.ax0 { --orb: 40s; } .fl-avx.ax1 { --orb: 8s; } .fl-avx.ax2 { --orb: 4s; } .fl-avx.ax3 { --orb: 2.2s; } .fl-avx.ax4 { --orb: 1.2s; }
+/* 轨道:整体匀速转;上面的小角色反向转同样的时间,所以始终是正的 */
+.fl-orbit { position: absolute; inset: 0; will-change: transform; animation: fl-spin var(--orb) linear infinite; }
+.fl-orbit-i {
+  position: absolute; top: -7px; left: 50%; width: 14px; margin-left: -7px; text-align: center;
+  font-size: 12px; line-height: 14px; will-change: transform;
+  animation: fl-spin var(--orb) linear infinite reverse;
+}
+.fl-avx.ax3 .fl-orbit-i, .fl-avx.ax4 .fl-orbit-i { font-size: 13px; filter: drop-shadow(0 0 3px rgba(255, 140, 30, 0.9)); }
+.fl-avx.ax4 .fl-orbit-i { filter: drop-shadow(0 0 4px rgba(6, 182, 212, 1)); }
+/* ⚡ 反向的内圈 + 冲击波 */
+.fl-ring2 {
+  position: absolute; inset: 3px; padding: 2px; box-sizing: border-box; border-radius: 50%;
+  background: conic-gradient(#06b6d4, #ff2d95, #8b5cf6, #06b6d4); will-change: transform; animation: fl-spin 2.4s linear infinite reverse;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.fl-wave {
+  position: absolute; inset: 0; border-radius: 50%; border: 2px solid rgba(6, 182, 212, 0.85); box-sizing: border-box;
+  opacity: 0; will-change: transform, opacity; animation: fl-wave 2.2s ease-out infinite;
+}
+/* ✨ 星星 / ⚡ 火花:在头像四周错开着闪 */
+.fl-sp { position: absolute; font-size: 10px; line-height: 10px; opacity: 0; will-change: opacity, transform; animation: fl-twinkle 1.8s ease-in-out infinite; }
+.fl-sp.s0 { top: -9px; right: 4px; }
+.fl-sp.s1 { bottom: -8px; left: -4px; animation-delay: 0.6s; }
+.fl-sp.s2 { top: 34%; right: -10px; animation-delay: 1.2s; }
+.fl-sp.s3 { top: 30%; left: -10px; animation-delay: 0.9s; }
+
 @keyframes fl-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .fl-ring { animation: none !important; } }
+@keyframes fl-wave { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes fl-twinkle { 0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(30deg); } }
+/* 系统开了"减少动态效果":全部静止(小角色停在最上面),星星和冲击波不显示 */
+@media (prefers-reduced-motion: reduce) {
+  .fl-ring, .fl-ring2, .fl-orbit, .fl-orbit-i { animation: none !important; }
+  .fl-sp, .fl-wave { display: none; }
+}

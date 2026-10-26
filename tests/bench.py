@@ -9,7 +9,8 @@ random.seed(7)
 now=time.time(); ago=lambda h: time.strftime("%a %b %d %H:%M:%S +0000 %Y", time.gmtime(now-h*3600))
 FILL="x"*1800
 def user(i): return {"__typename":"User","rest_id":str(i),"core":{"screen_name":f"user{i}","name":f"User {i}","created_at":"Mon Jan 01 00:00:00 +0000 2016"},"relationship_counts":{"followers":random.randint(50,900000),"following":random.randint(20,5000)},"relationship_perspectives":{"followed_by":i%3==0,"following":i%5==0},"tweet_counts":{"tweets":1234},"profile_bio":{"description":random.choice(["程序员 独立开发 Vibe Coding 出海","AI视频 影视视效 工具实测","Web3 crypto BTC 空投","大模型 研究员 论文 LLM","自媒体 涨粉 运营 公众号","设计师 Midjourney 生图 视觉"])+" 日常记录"},"extra":FILL}
-def tweet(i,u): return {"__typename":"Tweet","rest_id":str(1000+i),"views":{"count":str(random.randint(100,90000))},"legacy":{"favorite_count":random.randint(0,500),"retweet_count":1,"reply_count":2,"quote_count":0,"full_text":random.choice(["今天用 Cursor 写了一个 agent 工作流 做自动化","BTC 又涨了 链上数据很强 空投值得冲","可灵 即梦 Sora 视频生成对比 实测","美股 财报 投资 宏观 思考"])+" "+FILL[:600],"created_at":ago(random.uniform(0.3,20)),"entities":FILL},"core":{"user_results":{"result":u}}}
+def _views(): return int(10**random.uniform(1.0,3.4)) if os.environ.get("BENCH_REALISTIC") else random.randint(100,90000)
+def tweet(i,u): return {"__typename":"Tweet","rest_id":str(1000+i),"views":{"count":str(_views())},"legacy":{"favorite_count":random.randint(0,500),"retweet_count":1,"reply_count":2,"quote_count":0,"full_text":random.choice(["今天用 Cursor 写了一个 agent 工作流 做自动化","BTC 又涨了 链上数据很强 空投值得冲","可灵 即梦 Sora 视频生成对比 实测","美股 财报 投资 宏观 思考"])+" "+FILL[:600],"created_at":ago(random.uniform(0.3,20)),"entities":FILL},"core":{"user_results":{"result":u}}}
 RELEVANT=["HomeTimeline","HomeLatestTimeline","Following","UserTweets","TweetDetail","SearchTimeline","Followers","UserTweetsAndReplies"]
 NOISE=[f"Noise{k}" for k in range(26)]
 def payload(op):

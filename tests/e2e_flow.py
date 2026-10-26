@@ -29,7 +29,7 @@ def art(i,h,rw,w):
 <span class="xvm-badge" style="display:none"></span><div style="display:flex;width:46px"><button>g</button><button>m</button></div></div>
 <div role="group" style="display:flex;justify-content:space-between;width:518px;margin-bottom:14px;font:13px sans-serif"><div style="display:flex;width:111px"><button>1</button></div><div style="display:flex;width:111px"><button>2</button></div><div style="display:flex;width:111px"><button>3</button></div>
 <div style="display:flex;width:{w}px;justify-content:flex-start"><a role="link" href="/{h}/status/{i}/analytics">73</a></div><div style="display:flex;width:27px"><button>b</button></div><div style="display:grid;width:19px"><button>s</button></div></div></div></article>'''
-HTML=f'<!doctype html><html><body style="margin:30px"><div id=r></div><script>var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/Home");x.onload=function(){{document.getElementById("r").innerHTML={json.dumps("".join(art(i,h,rw,w) for i,h,f,v,a,rw,w in cases))};}};x.send();</script></body></html>'
+HTML=f'<!doctype html><html><body style="margin:30px"><div id=r></div><script>var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/HomeTimeline");x.onload=function(){{document.getElementById("r").innerHTML={json.dumps("".join(art(i,h,rw,w) for i,h,f,v,a,rw,w in cases))};}};x.send();</script></body></html>'
 ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)

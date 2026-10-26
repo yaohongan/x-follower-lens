@@ -7,6 +7,14 @@
   const HIST_MAX_POINTS = 24;
   const HIST_MIN_GAP = 6 * 3600e3;
 
+  // 自我计时:插件自己累计占用了多少主线程时间(毫秒),写到 <html data-fl-perf>,方便排查"是不是插件拖慢了页面"
+  const perf = { packets: 0, bytes: 0, handleMs: 0, renderMs: 0, renders: 0, mutMs: 0, mutCalls: 0, since: Date.now() };
+  let perfShown = "";
+  setInterval(() => {
+    const s = JSON.stringify({ ...perf, handleMs: Math.round(perf.handleMs), renderMs: Math.round(perf.renderMs), mutMs: Math.round(perf.mutMs), totalMs: Math.round(perf.handleMs + perf.renderMs + perf.mutMs) });
+    if (s !== perfShown) { perfShown = s; document.documentElement.dataset.flPerf = s; }
+  }, 2000);
+
   const users = new Map();      // handle -> user
   const tweetSeen = new Set();  // 去重,避免同一条推文重复累计
   const stats = new Map();      // handle -> { views, interactions }
@@ -108,6 +116,8 @@
     if (queue.length) setTimeout(drain, 0); else draining = false;
   }
   function enqueue(body) {
+    // 总开关关着:数据包直接丢掉,不解析、不记录历史、不排队。这样关掉总开关就能干净地对比"有没有这个插件"
+    if (!settings.enabled) return;
     queue.push(body);
     if (!draining) { draining = true; setTimeout(drain, 0); }
   }
@@ -120,6 +130,12 @@
   });
 
   function handleMessage(body) {
+    const t0 = performance.now();
+    perf.packets++; perf.bytes += body.length;
+    try { handleMessageInner(body); } finally { perf.handleMs += performance.now() - t0; }
+  }
+
+  function handleMessageInner(body) {
     let json;
     try { json = JSON.parse(body); } catch (_) { return; }
     const { users: us, tweets } = P.extract(json);
@@ -552,59 +568,102 @@
     return null;
   }
 
+  // ----- 头像特效:每一档一套"小角色绕着头像跑",越快跑得越疯 -----
+  // 所有动画只用 transform / opacity(合成线程,不占主线程)。方形头像(企业号)不绕圈,只保留圈和角标。
+  const AV_EMOJI = ["🐢", "🚲", "🛵", "🚀", "⚡"];
+  const mk = (cls, text) => { const s = document.createElement("span"); s.className = cls; if (text) s.textContent = text; return s; };
+
+  function removeAvatarFx(container) {
+    container.querySelectorAll(":scope > .fl-ring, :scope > .fl-ring-badge, :scope > .fl-avx").forEach((n) => n.remove());
+  }
+
+  function buildAvatarFx(container, tier, round) {
+    const w = mk(`fl-avx ax${tier} ${round ? "round" : "square"}`);
+    if (round) {
+      const orbit = mk("fl-orbit");
+      orbit.append(mk("fl-orbit-i", AV_EMOJI[tier]));            // 小角色:乌龟 / 自行车 / 小电驴 / 火箭 / 闪电
+      w.append(orbit);
+      if (tier === 4) { w.append(mk("fl-ring2")); w.append(mk("fl-wave")); }   // 光速:反向的内圈 + 周期性冲击波
+    }
+    if (tier >= 3) for (let k = 0; k < (tier === 4 ? 4 : 3); k++) w.append(mk(`fl-sp s${k}`, tier === 4 ? "⚡" : "✨"));   // 星星 / 火花
+    container.append(w);
+  }
+
   function decorateAvatar(article) {
     const container = article.querySelector('[data-testid^="UserAvatar-Container-"]');
     if (!container) return;
     const tier = flowTier.get(article);
-    const want = settings.avatarFx && tier >= 0 ? tier : -1;   // 每一档都有光环(慢档低调,快档华丽);只有没有流速标的推文没有
+    const want = settings.avatarFx && tier >= 0 ? tier : -1;   // 每一档都有(慢档低调,快档华丽);只有没有流速标的推文没有
     const ring = container.querySelector(":scope > .fl-ring");
-    if (want < 0) { if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); } return; }
+    if (want < 0) { if (ring) removeAvatarFx(container); return; }
     if (ring && ring.dataset.flTier === String(want)) {
-      // 稳态快路径。只有"形状还没读到"的光环,在前几次渲染里补判一次(之后不再读样式)
+      // 稳态快路径。只有"形状还没读到"的,在前几次渲染里补判一次(之后不再读样式)
       if (ring.dataset.flShape === "?" && (+ring.dataset.flChecks || 0) < 4) {
         ring.dataset.flChecks = String((+ring.dataset.flChecks || 0) + 1);
         const sh = roundness(container);
-        if (sh !== null) { ring.dataset.flShape = sh ? "r" : "s"; ring.classList.toggle("round", sh); ring.classList.toggle("square", !sh); }
+        if (sh === false) { removeAvatarFx(container); scheduleRender(); }   // 其实是方的:拆掉重建成方形版(没有绕圈角色)
+        else if (sh === true) ring.dataset.flShape = "r";
       }
       return;
     }
     const shape = roundness(container);               // 读不到就按圆形(绝大多数是个人头像),稍后补判
     const round = shape !== false;
-    const sig = String(want);
-    if (ring) { ring.remove(); container.querySelector(":scope > .fl-ring-badge")?.remove(); }
-    const el = document.createElement("span");
-    el.className = `fl-ring r${want}` + (round ? " round" : " square");
-    el.dataset.flTier = sig;
+    if (ring) removeAvatarFx(container);
+    const el = mk(`fl-ring r${want}` + (round ? " round" : " square"));
+    el.dataset.flTier = String(want);
     el.dataset.flShape = shape === null ? "?" : round ? "r" : "s";
     container.append(el);
-    if (want >= 3) {
-      const b = document.createElement("span");
-      b.className = "fl-ring-badge";
-      b.textContent = want === 4 ? "⚡" : "🚀";
-      container.append(b);
-    }
+    // 角标只给方形头像(它不绕圈);圆形头像已经有绕圈的小角色,再放角标就是两只火箭了
+    if (want >= 3 && !round) container.append(mk("fl-ring-badge", want === 4 ? "⚡" : "🚀"));
+    buildAvatarFx(container, want, round);
   }
 
   function cleanup() {
-    document.querySelectorAll(".fl-ring, .fl-ring-badge").forEach((r) => r.remove());
+    document.querySelectorAll(".fl-ring, .fl-ring-badge, .fl-avx").forEach((r) => r.remove());
     document.querySelectorAll(".fl-flow").forEach((f) => f.remove());
     document.querySelectorAll(".fl-line").forEach((l) => l.remove());
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
   }
 
+  // 只给"屏幕附近"的推文做装饰。X 的时间线会把远处的推文也留在页面里,用户根本看不到,给它们加特效纯属浪费。
+  // 用 IntersectionObserver 记下哪些推文在屏幕上下各 600px 以内;进入这个范围时再装饰。
+  const near = new WeakSet();
+  const watched = new WeakSet();
+  const io = new IntersectionObserver((entries) => {
+    let entered = false;
+    for (const e of entries) {
+      if (e.isIntersecting) { near.add(e.target); entered = true; }
+      else { near.delete(e.target); if (!e.target.isConnected) io.unobserve(e.target); }
+    }
+    if (entered) scheduleRender();
+  }, { rootMargin: "600px 0px 600px 0px" });
+
+  function nearArticles() {
+    const out = [];
+    for (const a of document.querySelectorAll('article[data-testid="tweet"]')) {
+      if (!watched.has(a)) { watched.add(a); io.observe(a); }
+      if (near.has(a)) out.push(a);
+    }
+    return out;
+  }
+
   function render() {
     if (!settings) return;
     if (!settings.enabled) { cleanup(); return; }
+    const t0 = performance.now();
+    perf.renders++;
+    const arts = nearArticles();
     // 先放流速标,再放粉丝徽标:头部放不下时,让粉丝徽标换行,流速标保留文字
-    document.querySelectorAll('article[data-testid="tweet"]').forEach(decorateFlow);
-    document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach(decorateTweet);
-    document.querySelectorAll('article[data-testid="tweet"]').forEach(decorateAvatar);
+    arts.forEach(decorateFlow);
+    for (const a of arts) { const un = a.querySelector('[data-testid="User-Name"]'); if (un) decorateTweet(un); }
+    arts.forEach(decorateAvatar);
     document.querySelectorAll('[data-testid="UserCell"]').forEach((cell) => {
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
       decorateCell(cell, nameBlock && nameBlock.parentElement);
     });
     updateHud();
+    perf.renderMs += performance.now() - t0;
   }
 
   let timer = null;
@@ -616,10 +675,16 @@
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
   const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"]';
   function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || (typeof n.className === "string" && n.className.includes("fl-"))); }
+  const OURS_SEL = ".fl-badge, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
   new MutationObserver((muts) => {
+    const t0 = performance.now();
+    try { onMutations(muts); } finally { perf.mutMs += performance.now() - t0; perf.mutCalls++; }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+
+  function onMutations(muts) {
     for (const m of muts) {
       const t = m.target;
-      if (t.nodeType === 1 && t.closest && t.closest('[class*="fl-"], #fl-tip, #fl-hud')) continue;   // 我们自己的元素里的变动
+      if (t.nodeType === 1 && t.closest && t.closest(OURS_SEL)) continue;   // 我们自己的元素里的变动
       let hit = false;
       for (const n of m.addedNodes) {
         if (n.nodeType !== 1 || isOurs(n)) continue;
@@ -630,7 +695,7 @@
       if (!hit && t.nodeType === 1 && t.closest && t.closest(REL) && [...m.addedNodes].some((n) => n.nodeType === 1 && !isOurs(n))) hit = true;   // 推文内部新长出的节点(操作栏、头像……)
       if (hit) { scheduleRender(); return; }
     }
-  }).observe(document.documentElement, { childList: true, subtree: true });
+  }
 
   // ---------- 调试条 ----------
   let hud = null;
@@ -648,7 +713,7 @@
   function updateHud() {
     if (!hud) return;
     const shown = document.querySelectorAll(".fl-badge").length;
-    const text = `FL 数据包:${msgCount} 用户:${users.size} 已显示:${shown}`;
+    const text = `FL 数据包:${msgCount} 用户:${users.size} 已显示:${shown} 插件累计耗时:${Math.round(perf.handleMs + perf.renderMs + perf.mutMs)}ms`;
     if (hud.textContent !== text) hud.textContent = text;
   }
 
