@@ -406,15 +406,16 @@
   // 悬停信息卡:鼠标放到流速标、头像上的小图标时,立刻显示这条推文的流速信息(不用等浏览器原生提示的 1 秒延迟)
   function flowCardHtml(d) {
     const { flow, trend, views } = d;
+    const MOOD = ["还在热身", "稳稳地骑", "已经跑起来了", "正在升空", "全速冲刺"];
     const rows = [];
-    rows.push(["流速", `<b>${Math.round(flow.rate).toLocaleString()} 次浏览/小时</b>`]);
-    rows.push(["浏览量", Number(views).toLocaleString()]);
-    rows.push(["发布", fmtAge(flow.ageH) + "前"]);
-    rows.push(["口径", settings.flowMode === "rel" ? "按作者粉丝量折算" : "发布以来的平均速度"]);
-    if (trend) rows.push(["最近一阵", `约 ${Math.round(trend.recent).toLocaleString()} 次/小时 ${trend.dir === "up" ? '<span class="up">↗ 在升温</span>' : trend.dir === "down" ? '<span class="down">↘ 在降温</span>' : "和平均差不多"}`]);
-    const tiers = settings.flowMode === "rel" ? "" : `<div class="fl-tip-r"><span>档位</span><b style="font-weight:400;font-size:11.5px">🐢&lt;30 🚲&lt;150 🛵&lt;600 🚀&lt;3k ⚡≥3k</b></div>`;
-    const note = flow.fresh ? "刚发布,数字还不稳" : flow.old ? "发布已久,这是发布以来的平均速度" : "";
-    return `<div class="fl-tip-h">${flow.emoji} ${flow.name}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + tiers + (note ? `<div class="fl-tip-n">${note}</div>` : "");
+    rows.push(["平均每小时被看", `<b>${Math.round(flow.rate).toLocaleString()} 次</b>`]);
+    rows.push(["累计被看", Number(views).toLocaleString() + " 次"]);
+    rows.push(["已发出", fmtAge(flow.ageH)]);
+    rows.push(["怎么算的", settings.flowMode === "rel" ? "再按作者粉丝量折算成相对速度" : "累计被看 ÷ 已发出的时长"]);
+    if (trend) rows.push(["近段走势", `约 ${Math.round(trend.recent).toLocaleString()} 次/小时 ${trend.dir === "up" ? '<span class="up">↗ 越跑越快</span>' : trend.dir === "down" ? '<span class="down">↘ 慢下来了</span>' : "和全程差不多"}`]);
+    const tiers = settings.flowMode === "rel" ? "" : `<div class="fl-tip-r"><span>速度刻度</span><b style="font-weight:400;font-size:11.5px">🐢&lt;30 🚲&lt;150 🛵&lt;600 🚀&lt;3k ⚡≥3k</b></div>`;
+    const note = flow.fresh ? "刚发出来,数字还会变" : flow.old ? "发出已久,这是整段时间的平均值" : "";
+    return `<div class="fl-tip-h">${flow.emoji} ${flow.name} · ${MOOD[flow.tier] || ""}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + tiers + (note ? `<div class="fl-tip-n">${note}</div>` : "");
   }
 
   function bindFlowHover(el, article) {

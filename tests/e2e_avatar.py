@@ -46,7 +46,7 @@ with sync_playwright() as p:
     # 悬停信息卡
     pg.hover('article:nth-child(4) [data-testid^=UserAvatar-Container-]'); pg.wait_for_timeout(300)
     card=pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return t&&t.style.display!=='none'?t.innerText.replace(/\\n/g,' | '):null})()")
-    check("鼠标放到头像上:显示信息卡",card and all(k in card for k in ("次浏览/小时","浏览量","发布","口径")),card)
+    check("鼠标放到头像上:显示信息卡",card and all(k in card for k in ("平均每小时被看","累计被看","已发出","怎么算的")),card)
     pg.mouse.move(2,2); pg.wait_for_timeout(250)
     check("移开后信息卡消失",pg.evaluate("document.getElementById('fl-tip').style.display==='none'"))
     check("方形头像(企业号):不转、没有绕圈小图标,有角标 🚀",s[5] and "square" in s[5]["cls"] and s[5]["ringAnim"]=="none" and s[5]["emoji"] is None and s[5]["badge"]=="🚀",s[5])
