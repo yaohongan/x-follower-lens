@@ -47,7 +47,7 @@
 
   function flush() {
     while (pending.length) queue.push(pending.shift());
-    if (queue.length && !draining) { draining = true; whenIdle(drain); }
+    if (queue.length && !draining) { draining = true; setTimeout(drain, 0); }
     scheduleRender();
   }
 
@@ -97,18 +97,19 @@
   window.addEventListener("pagehide", flushSave);
 
   // ---------- 数据包处理 ----------
-  // 数据包先排队,浏览器空闲时一个一个处理:页面刚打开时 X 自己很忙,别在这时候抢主线程
+  // 数据包排队,分片处理:每次最多占 12ms 就让出主线程(不卡页面),但不等"空闲"
+  // (空闲回调在页面刚打开最忙的时候会被饿很久,标就出来得慢)
   const queue = [];
   let draining = false;
-  const whenIdle = (fn) => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 400 }) : setTimeout(() => fn(null), 16));
-  function drain(deadline) {
-    do { handleMessage(queue.shift()); } while (queue.length && deadline && !deadline.didTimeout && deadline.timeRemaining() > 8);
+  function drain() {
+    const t0 = performance.now();
+    do { handleMessage(queue.shift()); } while (queue.length && performance.now() - t0 < 12);
     scheduleRender();
-    if (queue.length) whenIdle(drain); else draining = false;
+    if (queue.length) setTimeout(drain, 0); else draining = false;
   }
   function enqueue(body) {
     queue.push(body);
-    if (!draining) { draining = true; whenIdle(drain); }
+    if (!draining) { draining = true; setTimeout(drain, 0); }
   }
 
   window.addEventListener("message", (e) => {
@@ -371,6 +372,19 @@
 
   const flowRechecked = new WeakSet();   // 每条推文只在放好后复查一次位置(别的插件的浮层可能晚到)
 
+  function flowLevels(place, flow, rate, arrow) {
+    return place !== "b"
+      ? [`${flow.emoji} ${flow.name} ${rate}${arrow}`, `${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`]
+      : [`${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`];
+  }
+
+  function flowTooltip(flow, trend) {
+    const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
+      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)}${flow.old ? ",这是发布以来的平均速度" : ""})`];
+    if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
+    return lines.join("\n");
+  }
+
   function decorateFlow(article) {
     const old = article.querySelector(".fl-flow");
     const id = tweetIdOf(article);
@@ -385,9 +399,23 @@
 
     const trend = flow.old ? null : P.trendOf(info.obs, flow.rate);
     const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
-    // 稳态快路径:内容没变就直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排,是最大的开销)
-    const sig0 = `${P.fmtRate(flow.rate)}|${flow.tier}|${arrow}|${settingsVer}`;
+    const rate = `${P.fmtRate(flow.rate)}/h`;
+    // key = 结构(档位 + 设置);sig0 = 结构 + 数字。
+    // 稳态快路径:什么都没变,直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排)
+    const key = `${flow.tier}|${settingsVer}`;
+    const sig0 = `${key}|${rate}|${arrow}`;
     if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
+    // 只是数字变了(每次刷新浏览量都会变一点):原地改文字和提示。
+    // 不删不重建,不重新定位,动画也不会重新开始——否则每次数据刷新都会"闪一下"
+    if (old && old.isConnected && old.dataset.flKey === key) {
+      const levels = flowLevels(old.dataset.flPlace, flow, rate, arrow);
+      const text = levels[Math.min(+old.dataset.flLevel || 0, levels.length - 1)];
+      const node = old.lastChild;
+      if (node && node.nodeType === 3) node.nodeValue = text.slice(flow.emoji.length);
+      old.title = flowTooltip(flow, trend);
+      old.dataset.flSig0 = sig0;
+      return;
+    }
 
     const un = article.querySelector('[data-testid="User-Name"]');
     const link = article.querySelector('[role="group"] a[href$="/analytics"]');
@@ -402,54 +430,64 @@
     const overlaid = headerOk && headerOverlays(article, row).length > 0;
     let place = cornerOk ? "c" : headerOk && (mode === "header" || (mode === "auto" && !overlaid) || (mode === "corner" && !cornerOk)) ? "h" : cell ? "b" : headerOk ? "h" : "";
     if (!place) { if (old) old.remove(); return; }
-    const inHeader = place === "h";
 
     if (old) old.remove();
 
-    const rate = `${P.fmtRate(flow.rate)}/h`;
     const chip = document.createElement("span");
     chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
+    chip.dataset.flKey = key;
     chip.dataset.flSig0 = sig0;
-    const lines = [`流速 ${flow.name}${settings.flowMode === "rel" ? "(按粉丝量折算)" : ""}`,
-      `平均约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时(发布 ${fmtAge(flow.ageH)}${flow.old ? ",这是发布以来的平均速度" : ""})`];
-    if (trend) lines.push(`最近这一阵约 ${Math.round(trend.recent).toLocaleString()} 次/小时,${trend.dir === "up" ? "比平均快,在升温 ↗" : trend.dir === "down" ? "比平均慢,在降温 ↘" : "和平均差不多"}`);
-    chip.title = lines.join("\n");
+    chip.title = flowTooltip(flow, trend);
 
-    // 从详细到简略,放得下哪个就用哪个
-    const levels = place !== "b"
-      ? [`${flow.emoji} ${flow.name} ${rate}${arrow}`, `${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`]
-      : [`${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`];
+    // 从详细到简略,放得下哪个就用哪个;记下选了第几档,之后原地更新文字时沿用
+    const levels = flowLevels(place, flow, rate, arrow);
+    let level = 0;
     if (place === "c") {
       chip.style.setProperty("--fl-bg", pageBg());
       article.append(chip);
       placeCorner(chip, article, row);
-      // 从详细到简略,选不压住名字和 @ID 的最详细一档
       const cr = contentRight(un);
       let fitted = false;
-      for (const t of levels) { setChip(chip, t, flow.emoji); placeCorner(chip, article, row); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); placeCorner(chip, article, row); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
       // 连图标都会压住名字:改放到底部浏览量旁
       if (!fitted && cell) {
+        place = "b";
         chip.remove(); chip.classList.remove("fl-flow-c"); chip.removeAttribute("style");
         cell.append(chip);
-        for (const t of levels.slice(1)) { setChip(chip, t, flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+        const bl = flowLevels("b", flow, rate, arrow);
+        for (let i = 0; i < bl.length; i++) { level = i; setChip(chip, bl[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       }
-    } else if (inHeader) {
+    } else if (place === "h") {
       // 先撤下这条推文已有的粉丝徽标,等流速标就位后,render 会按"放得下行内、放不下换行"重新放
       const rec = placed.get(un);
       if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); placed.delete(un); }
       menu.before(chip);
-      for (const t of levels) { setChip(chip, t, flow.emoji); if (!crowded(un, chip)) break; }
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (!crowded(un, chip)) break; }
       if (mode === "header") avoidOverlays(chip, article, row, menu);
     } else {
       cell.append(chip);
-      for (const t of levels) { setChip(chip, t, flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
     }
-    // 别的插件的浮层可能比我们晚到:放好 1.5 秒后复查一次位置(只一次),之后不再碰布局
+    chip.dataset.flPlace = place;
+    chip.dataset.flLevel = String(level);
+
+    // 别的插件的浮层可能比我们晚到:放好 1.5 秒后复查一次位置(只一次)。
+    // 只在"位置决策真的变了"时才重建;否则原地微调,不删不重建(重建会让标消失一瞬间)
     if (!flowRechecked.has(article)) {
       flowRechecked.add(article);
       setTimeout(() => {
         const c2 = article.querySelector(".fl-flow");
-        if (c2 && c2.isConnected) { c2.dataset.flSig0 = ""; scheduleRender(); }
+        if (!c2 || !c2.isConnected) return;
+        const un2 = article.querySelector('[data-testid="User-Name"]');
+        const row2 = un2 && headerRow(un2);
+        if (!row2) return;
+        const pl = c2.dataset.flPlace, md = settings.flowPos;
+        if (pl === "c") { placeCorner(c2, article, row2); return; }
+        if (pl === "h" && md === "header") { avoidOverlays(c2, article, row2, row2.lastElementChild); return; }
+        if (md === "auto") {
+          const want = headerOverlays(article, row2).length > 0 ? "b" : "h";
+          if (want !== pl) { c2.dataset.flKey = ""; c2.dataset.flSig0 = ""; scheduleRender(); }
+        }
       }, 1500);
     }
   }
@@ -530,7 +568,7 @@
   let timer = null;
   function scheduleRender() {
     if (timer) return;
-    timer = setTimeout(() => { timer = null; render(); }, 200);
+    timer = setTimeout(() => { timer = null; render(); }, 50);
   }
 
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
@@ -545,6 +583,8 @@
         if (n.nodeType !== 1 || isOurs(n)) continue;
         if (n.matches(REL) || n.querySelector(REL)) { hit = true; break; }
       }
+      // X 重绘推文时会把我们加的标/光环/徽标顺手删掉。只听"新增"就不知道,要等别的变动才补回来——表现就是"一会有一会没"
+      if (!hit) for (const n of m.removedNodes) { if (isOurs(n) && t.isConnected) { hit = true; break; } }
       if (!hit && t.nodeType === 1 && t.closest && t.closest(REL) && [...m.addedNodes].some((n) => n.nodeType === 1 && !isOurs(n))) hit = true;   // 推文内部新长出的节点(操作栏、头像……)
       if (hit) { scheduleRender(); return; }
     }

@@ -34,7 +34,7 @@ addEventListener("load",function(){{
 }});
 </script></body></html>'''
 INIT="""window.__lt=[];try{new PerformanceObserver(l=>l.getEntries().forEach(e=>window.__lt.push(e.duration))).observe({type:'longtask',buffered:true})}catch(e){}
-window.__fb=null;new MutationObserver(()=>{if(window.__fb===null&&document.querySelector('.fl-badge'))window.__fb=Math.round(performance.now())}).observe(document,{childList:true,subtree:true});"""
+window.__fb=null;window.__fc=null;window.__fr=null;new MutationObserver(()=>{const n=Math.round(performance.now());if(window.__fb===null&&document.querySelector('.fl-badge'))window.__fb=n;if(window.__fc===null&&document.querySelector('.fl-flow'))window.__fc=n;if(window.__fr===null&&document.querySelector('.fl-ring'))window.__fr=n}).observe(document,{childList:true,subtree:true});"""
 def run():
     with sync_playwright() as p:
         args=["--no-first-run"]
@@ -50,10 +50,10 @@ def run():
         pg.goto("https://x.com/home"); pg.wait_for_timeout(9000)
         m={x["name"]:x["value"] for x in cdp.send("Performance.getMetrics")["metrics"]}
         ms=lambda k: round(m.get(k,0)*1000)
-        r=pg.evaluate("({sum:Math.round(window.__lt.reduce((a,b)=>a+b,0)),n:window.__lt.length,max:Math.round(Math.max(0,...window.__lt)),firstBadge:window.__fb,badges:document.querySelectorAll('.fl-badge').length,chips:document.querySelectorAll('.fl-flow').length,rings:document.querySelectorAll('.fl-ring').length})")
+        r=pg.evaluate("({sum:Math.round(window.__lt.reduce((a,b)=>a+b,0)),n:window.__lt.length,max:Math.round(Math.max(0,...window.__lt)),firstBadge:window.__fb,firstChip:window.__fc,firstRing:window.__fr,badges:document.querySelectorAll('.fl-badge').length,chips:document.querySelectorAll('.fl-flow').length,rings:document.querySelectorAll('.fl-ring').length})")
         r.update({"script":ms("ScriptDuration"),"layout":ms("LayoutDuration"),"style":ms("RecalcStyleDuration"),"task":ms("TaskDuration")})
         ctx.close(); return r
 res=[run() for _ in range(3)]
 for r in res: print(r)
 avg=lambda k: round(sum(r[k] for r in res)/3)
-print(f"平均 主线程总耗时 {avg('task')}ms  = 脚本 {avg('script')} + 布局 {avg('layout')} + 样式重算 {avg('style')}(ms) | 首个徽标出现 {[r['firstBadge'] for r in res]}")
+print(f"平均 主线程总耗时 {avg('task')}ms  = 脚本 {avg('script')} + 布局 {avg('layout')} + 样式重算 {avg('style')}(ms) | 首个徽标 {[r['firstBadge'] for r in res]} 首个流速标 {[r['firstChip'] for r in res]} 首个光环 {[r['firstRing'] for r in res]} (ms)")

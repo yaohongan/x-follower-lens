@@ -29,7 +29,9 @@ def check(n,c,e=""):
 with sync_playwright() as p:
     ctx=p.chromium.launch_persistent_context(tempfile.mkdtemp(),executable_path=EXE,headless=False,
         args=[f"--disable-extensions-except={EXT}",f"--load-extension={EXT}"],viewport={"width":900,"height":700})
-    ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=data))
+    CUR=[data]
+    ctx.add_init_script("""window.__rm={};new MutationObserver(ms=>ms.forEach(m=>m.removedNodes.forEach(n=>{if(n.nodeType!==1)return;const hit=n.classList.contains('fl-flow')?n:(n.querySelector&&n.querySelector('.fl-flow'));if(!hit)return;const a=m.target.closest&&m.target.closest('article');const h=a?((a.querySelector('[data-testid=User-Name] a')||{}).textContent||'?'):'?';window.__rm[h]=(window.__rm[h]||0)+1}))).observe(document,{childList:true,subtree:true});""")
+    ctx.route("https://x.com/i/api/**",lambda r:r.fulfill(status=200,content_type="application/json",body=CUR[0]))
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML))
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("https://x.com/home"); pg.wait_for_timeout(2500)
@@ -45,6 +47,24 @@ with sync_playwright() as p:
     check("角落:层级比对方高 1;底色不透明;对方元素原样还在(没删没改)",cv["z"]==cv["ovz"]+1 and cv["opaque"] and cv["ovStillThere"],cv)
     dflt=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[3].querySelector('.fl-flow');const cs=getComputedStyle(c);return {right:cs.right,top:cs.top}})()")
     check("没有别的插件时:用同一套坐标(距右 96px、距顶 10px)",dflt["right"]=="96px" and dflt["top"]=="10px",dflt)
+    # ---- 不闪:放好之后(含 1.5 秒复查)不能把流速标删了重建 ----
+    pg.wait_for_timeout(2500)   # 越过 1.5 秒的位置复查
+    rm=pg.evaluate("window.__rm")
+    check("放好后(含 1.5 秒复查)没有删除重建:火箭/小电驴/光速三条一次都没被删过",all(rm.get(h,0)==0 for h in ("rocketguy","bigacct","lightspeed")),rm)
+    # ---- 数字变了:原地更新同一个元素 ----
+    pg.evaluate("window.__tag=document.querySelectorAll('article')[3].querySelector('.fl-flow')")
+    alt=json.loads(data)
+    for tw_ in alt["data"]:
+        if tw_["core"]["user_results"]["result"]["core"]["screen_name"]=="bigacct": tw_["views"]["count"]="950"
+    CUR[0]=json.dumps(alt)
+    pg.evaluate("(()=>{const x=new XMLHttpRequest();x.open('GET','/i/api/graphql/a/HomeAgain');x.send()})()"); pg.wait_for_timeout(900)
+    same=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[3].querySelector('.fl-flow');return {sameElement:c===window.__tag,text:c.textContent.trim()}})()")
+    check("浏览量变了(档位没变):原地更新同一个元素,数字变成 475/h,没有删除重建",same["sameElement"] and "475" in same["text"],same)
+    # ---- X 把我们的标删掉:很快补回来 ----
+    pg.evaluate("document.querySelectorAll('article')[3].querySelector('.fl-flow').remove()"); pg.wait_for_timeout(700)
+    check("流速标被页面删掉后,0.7 秒内自动补回",pg.evaluate("document.querySelectorAll('article')[3].querySelectorAll('.fl-flow').length")==1)
+    pg.evaluate("(()=>{const b=document.querySelectorAll('article')[3].querySelector('.fl-badge');(b.closest('.fl-line')||b).remove()})()"); pg.wait_for_timeout(700)
+    check("粉丝徽标被页面删掉后,0.7 秒内自动补回",pg.evaluate("document.querySelectorAll('article')[3].querySelectorAll('.fl-badge').length")==1)
     # ---- 动效:只有 火箭/光速 两档 ----
     fx=pg.evaluate("""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('.fl-flow');if(!c)return null;const bg=c.querySelector('.fl-fxbg');const emo=c.querySelector('.fl-emo');
       return {fx:c.classList.contains('fl-fx'),hasBg:!!bg,flow:bg?getComputedStyle(bg,'::before').animationName:'none',sweep:bg?getComputedStyle(bg,'::after').animationName:'none',glow:getComputedStyle(c,'::after').animationName,emoAnim:emo?getComputedStyle(emo).animationName:null,color:getComputedStyle(c).color,cls:c.className}})""")
