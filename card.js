@@ -49,7 +49,7 @@
     rr(c, x, y, w, h, r); c.strokeStyle = t.panelStroke; c.lineWidth = 1.5; c.stroke();
   };
 
-  // data: { name, handle, avatar(Image|null), followers, following, ratio, ageText, score:{score,label,parts[]}, tags:[string], date }
+  // data: { name, handle(主页地址 x.com/handle 由它拼出), avatar(Image|null), followers, following, ratio, ageText, score:{score,label,parts[]}, tags:[string], date }
   function draw(canvas, data, themeName) {
     canvas.width = W * S; canvas.height = H * S;
     const c = canvas.getContext("2d");
@@ -73,8 +73,9 @@
     c.restore();
     const rg = c.createLinearGradient(ax - ar, ay - ar, ax + ar, ay + ar); rg.addColorStop(0, t.name === "aurora" ? "#fff" : t.a1); rg.addColorStop(1, t.name === "aurora" ? "#ffffffaa" : t.a2);
     c.strokeStyle = rg; c.lineWidth = 5; c.beginPath(); c.arc(ax, ay, ar + 6, 0, Math.PI * 2); c.stroke();
-    c.textAlign = "left"; c.fillStyle = t.ink; c.font = `800 40px ${FONT}`; c.fillText(ell(c, data.name || data.handle, 510), 202, 188);
-    c.fillStyle = t.sub; c.font = `500 25px ${FONT}`; c.fillText("@" + data.handle, 202, 228);
+    c.textAlign = "left"; c.fillStyle = t.ink; c.font = `800 38px ${FONT}`; c.fillText(ell(c, data.name || data.handle, 510), 202, 172);
+    c.fillStyle = t.sub; c.font = `500 24px ${FONT}`; c.fillText("@" + data.handle, 202, 208);
+    c.fillStyle = t.ink; c.globalAlpha = t.name === "light" ? 0.75 : 0.9; c.font = `700 21px ${FONT}`; c.fillText(ell(c, "x.com/" + data.handle, 510), 202, 240); c.globalAlpha = 1;
 
     // 主角:质量指数
     const cx = W / 2, cy = 462, R = 128;
