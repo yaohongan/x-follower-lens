@@ -1,0 +1,49 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>上架填表助手</title>
+<style>
+:root{--bg:#f6f8fa;--card:#fff;--fg:#0f1419;--muted:#6b7280;--line:#e5e7eb;--acc:#1d9bf0}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1114;--card:#16181c;--fg:#e7e9ea;--muted:#8b98a5;--line:#2f3336}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 -apple-system,"PingFang SC",sans-serif}
+main{max-width:820px;margin:0 auto;padding:24px 16px 80px}h1{font-size:26px;margin:8px 0}p.s{color:var(--muted);margin:0 0 20px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0}
+.step h2{margin:0 0 4px;font-size:18px}.step h2 span{display:inline-block;width:26px;height:26px;line-height:26px;text-align:center;border-radius:50%;background:var(--acc);color:#fff;font-size:14px;margin-right:8px}
+.hint{color:var(--muted);font-size:13.5px;margin:2px 0 12px}
+.f{border:1px solid var(--line);border-radius:10px;margin:10px 0;overflow:hidden}.fh{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(127,127,127,.07)}
+button{font:inherit;border:0;background:var(--acc);color:#fff;padding:5px 16px;border-radius:999px;cursor:pointer}button.ok{background:#00a06c}
+pre{margin:0;padding:10px 12px;white-space:pre-wrap;word-break:break-all;font:13.5px/1.55 ui-monospace,Menlo,monospace;max-height:220px;overflow:auto}
+code{background:rgba(127,127,127,.15);padding:1px 6px;border-radius:5px;font-size:13.5px}a{color:var(--acc)}li{margin:4px 0}
+.warn{border-left:4px solid #f59e0b;background:rgba(245,158,11,.1);padding:10px 14px;border-radius:8px;margin:12px 0;font-size:14px}
+</style></head><body><main>
+<h1>粉丝透镜 · 上架填表助手</h1><p class="s">照着从上到下做。每个灰框右上角点"复制",再去商店后台粘贴就行。</p>
+
+<div class="step"><h2><span>1</span>打开后台,上传安装包</h2>
+<ol><li>点这里打开:<a href="https://chrome.google.com/webstore/devconsole" target="_blank">Chrome 应用商店开发者后台</a>(确认登录的是 yaohongan2021 那个账号)</li>
+<li>点 <b>"新增商品"</b></li>
+<li>把这个文件拖进去:<code>x-follower-lens-0.2.3.zip</code>(我已经在 Finder 里给你选中了,在 <code>x-follower-lens/dist</code> 文件夹)</li></ol></div>
+
+<div class="step"><h2><span>2</span>"商品详情"页</h2><p class="hint">没有写到的格子,保持默认。</p>
+<div class="f"><div class="fh"><b>名称</b><button onclick="cp(0,this)">复制</button></div><pre id="v0"></pre></div><div class="f"><div class="fh"><b>摘要(简短说明)</b><button onclick="cp(1,this)">复制</button></div><pre id="v1"></pre></div><div class="f"><div class="fh"><b>详细说明(中文)</b><button onclick="cp(2,this)">复制</button></div><pre id="v2"></pre></div>
+<ul><li><b>类别</b>:选"工具"。<b>语言</b>:中文(简体)</li>
+<li><b>图标</b>:上传 <code>x-follower-lens/icons/icon128.png</code></li>
+<li><b>截图</b>(一次选 4 张):<code>x-follower-lens/store</code> 文件夹里的 <code>screenshot-1.png</code> 到 <code>screenshot-4.png</code></li>
+<li><b>小宣传图</b>:<code>x-follower-lens/store/promo-440x280.png</code></li></ul>
+<div class="f"><div class="fh"><b>主页 URL</b><button onclick="cp(3,this)">复制</button></div><pre id="v3"></pre></div><div class="f"><div class="fh"><b>支持 URL</b><button onclick="cp(4,this)">复制</button></div><pre id="v4"></pre></div></div>
+
+<div class="step"><h2><span>3</span>"隐私规范"页 <small style="color:var(--muted)">(最容易卡住,仔细点)</small></h2>
+<div class="f"><div class="fh"><b>单一用途说明</b><button onclick="cp(5,this)">复制</button></div><pre id="v5"></pre></div><div class="f"><div class="fh"><b>权限理由:storage</b><button onclick="cp(6,this)">复制</button></div><pre id="v6"></pre></div><div class="f"><div class="fh"><b>权限理由:内容脚本(x.com、twitter.com)</b><button onclick="cp(7,this)">复制</button></div><pre id="v7"></pre></div>
+<ul><li><b>是否使用远程代码</b>:选 <b>否</b></li>
+<li><b>数据使用</b>:所有类别<b>都不勾</b>。最下面三个承诺<b>全部勾上</b></li></ul>
+<div class="f"><div class="fh"><b>隐私政策 URL</b><button onclick="cp(8,this)">复制</button></div><pre id="v8"></pre></div>
+<div class="warn">如果后台问"你收集的用户数据"之类,统一答:不收集。这个扩展不上传任何东西,所有数据只存在用户自己的浏览器里。</div></div>
+
+<div class="step"><h2><span>4</span>"分发"页</h2><ul><li><b>可见性</b>:公开</li><li><b>地区</b>:所有地区</li><li><b>贸易商声明</b>:选"我不是贸易商"</li></ul></div>
+
+<div class="step"><h2><span>5</span>提交审核</h2><p>点页面右上角 <b>"提交审核"</b>。后台如果提示有哪一格没填,把提示截图发给我。</p>
+<div class="warn">审核通常需要等一段时间,期间会发邮件到你的 Google 邮箱。被拒也很常见,把邮件里的拒绝原因发给我,我来改。</div></div>
+</main>
+<script>
+const V=["粉丝透镜 Follower Lens", "在 X(Twitter)信息流和关注列表里直接显示粉丝数,并给出互关、大V、互动率等质量标签。", "X 不直接显示别人的粉丝数。看到一个陌生账号,想知道它值不值得关注,得点进主页才行。\n粉丝透镜把这一步省掉了:在 X 的信息流和关注列表里,直接在用户名旁边显示粉丝数,并告诉你这个账号大概是什么类型。\n\n【主要功能】\n• 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数(1万以内精确显示)\n• 分级配色:按粉丝量分档上色,一眼分出量级\n• 质量标签:互关 / 关注了你 / 大V / 高互动 / 低活跃 / 疑似互粉号 / 新号 / 老号\n• 悬停详情卡:精确粉丝数、关注数、粉丝/关注比、推文数、注册时间、互动率\n• 粉丝数变化:在你的浏览器本地记录你刷到过的账号,显示\"近 7 天涨了多少\"\n• 列表淡化:在关注 / 粉丝列表里,把疑似互粉号和低活跃号淡化,更快找到值得关注的人\n• 自适应布局:推文头部太挤时,徽标自动换到下一行,不会把名字挤坏\n• 设置面板:每个功能、每种标签都能单独开关,改动即时生效\n\n【适合谁】\n想通过别人的\"正在关注\"列表找新账号的人;想知道哪些有影响力的人关注了自己的人;想快速判断陌生账号质量的人。\n\n【隐私】\n• 不收集、不上传、不出售任何数据,没有统计和广告代码\n• 只读取 X 网页自己已经收到的数据,不主动发出任何网络请求\n• 设置和粉丝数历史只保存在你浏览器本地,可随时在设置面板里清除\n• 开源:https://github.com/yaohongan/x-follower-lens\n\n【说明】\n标签是辅助参考,粉丝数多少不代表内容质量。本扩展是个人开发的非官方工具,与 X Corp. 无关。X 改版后可能需要更新。", "https://github.com/yaohongan/x-follower-lens", "https://github.com/yaohongan/x-follower-lens/issues", "在 X(Twitter)网页上显示账号的粉丝数和质量标签,帮助用户判断账号。", "保存用户的设置(各开关、徽标位置)以及用户本地的粉丝数历史记录,用于显示\"近 7 天变化\"。数据只保存在本地,不上传。", "扩展只在 x.com 和 twitter.com 运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数),并在页面上显示徽标。不读取任何其它网站。", "https://github.com/yaohongan/x-follower-lens/blob/main/PRIVACY.md"];
+V.forEach((v,i)=>{document.getElementById('v'+i).textContent=v});
+function cp(i,b){const t=V[i];const done=()=>{b.textContent='已复制 ✓';b.classList.add('ok');setTimeout(()=>{b.textContent='复制';b.classList.remove('ok')},1800)};
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(t).then(done).catch(()=>fb(t,done))}else fb(t,done)}
+function fb(t,done){const a=document.createElement('textarea');a.value=t;document.body.append(a);a.select();try{document.execCommand('copy');done()}catch(e){alert('复制失败,请手动选中文字复制')}a.remove()}
+</script></body></html>

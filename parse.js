@@ -10,6 +10,8 @@
     hoverCard: true,      // 悬停详情卡
     trackHistory: true,   // 本地记录粉丝数变化
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
+    flow: true,           // 推文流速标注(每小时浏览量)
+    flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
     layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
     maxTags: 3,           // 徽标里最多显示几个标签(0 = 只显示粉丝数)
     debug: false,         // 左下角调试条
@@ -60,6 +62,7 @@
       id: t.rest_id,
       author,
       views,
+      createdAt: legacy.created_at || null,
       interactions:
         num(legacy.favorite_count) + num(legacy.retweet_count) +
         num(legacy.reply_count) + num(legacy.quote_count),
@@ -170,7 +173,38 @@
     return { days: Math.max(1, Math.round((now - best.ts) / 86400e3)), diff: current - best.f, base: best.f };
   }
 
-  const api = { DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom };
+  // ---- 流速:推文发布后平均每小时的浏览量 ----
+  const FLOW_TIERS = [
+    { emoji: "🐢", name: "龟速" },
+    { emoji: "🚲", name: "自行车" },
+    { emoji: "🛵", name: "小电驴" },
+    { emoji: "🚀", name: "火箭" },
+    { emoji: "⚡", name: "光速" },
+  ];
+  const FLOW_ABS = [30, 150, 600, 3000];   // 每小时浏览量的分档线
+  const FLOW_REL = [0.5, 2, 8, 30];        // 每小时、每千粉丝的浏览量
+  const FLOW_MIN_AGE_H = 0.25;             // 发布不足 15 分钟:太早,数字不稳
+  const FLOW_MAX_AGE_H = 24;               // 超过 24 小时:早过了爆发期,均速没意义
+
+  // t: { views, createdAt }  返回 null 表示不显示
+  function flowOf(t, followers, now, mode) {
+    if (!t || !t.createdAt || !(t.views > 0)) return null;
+    const ageH = (now - new Date(t.createdAt).getTime()) / 3600e3;
+    if (!(ageH >= FLOW_MIN_AGE_H) || ageH > FLOW_MAX_AGE_H) return null;
+    const rate = t.views / ageH;
+    const rel = mode === "rel";
+    const value = rel ? rate / Math.max((followers || 0) / 1000, 1) : rate;
+    const lines = rel ? FLOW_REL : FLOW_ABS;
+    let idx = 0;
+    while (idx < lines.length && value >= lines[idx]) idx++;
+    return { rate, ageH, tier: idx, ...FLOW_TIERS[idx] };
+  }
+
+  function fmtRate(r) {
+    return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
+  }
+
+  const api = { FLOW_TIERS, flowOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

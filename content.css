@@ -46,6 +46,25 @@
 .fl-tag.warn { background: rgba(249, 24, 128, 0.12); color: rgb(220, 30, 110); }
 .fl-tag.rel  { background: rgba(120, 86, 255, 0.15); color: rgb(120, 86, 255); }
 
+/* 推文流速(底部操作栏) */
+.fl-flow {
+  flex: none;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: default;
+  align-self: center;
+}
+.fl-flow.f0 { background: rgba(113, 118, 123, 0.16); color: rgb(113, 118, 123); }
+.fl-flow.f1 { background: rgba(29, 155, 240, 0.13);  color: rgb(29, 155, 240); }
+.fl-flow.f2 { background: rgba(0, 186, 124, 0.15);   color: rgb(0, 160, 108); }
+.fl-flow.f3 { background: rgba(255, 159, 10, 0.18);  color: rgb(214, 126, 0); }
+.fl-flow.f4 { background: linear-gradient(135deg, rgba(249, 24, 128, 0.18), rgba(255, 159, 10, 0.2)); color: rgb(226, 22, 116); }
+
 /* 关注/粉丝列表里被淡化的账号:鼠标移上去恢复 */
 [data-testid="UserCell"].fl-dim { opacity: 0.45; transition: opacity 0.15s; }
 [data-testid="UserCell"].fl-dim:hover { opacity: 1; }

@@ -9,6 +9,7 @@
   const users = new Map();      // handle -> user
   const tweetSeen = new Set();  // 去重,避免同一条推文重复累计
   const stats = new Map();      // handle -> { views, interactions }
+  const tweetInfo = new Map();  // 推文 id -> { views, createdAt, author }(浏览量取最新一次)
   let settings = null;          // 读完存储后才渲染
   let settingsVer = 0;
   let hist = {};
@@ -90,6 +91,7 @@
       recordHistory(u, now);
     }
     for (const t of tweets) {
+      tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author });
       if (tweetSeen.has(t.id)) continue;
       tweetSeen.add(t.id);
       const s = stats.get(t.author) || { views: 0, interactions: 0 };
@@ -223,7 +225,43 @@
     cell.classList.toggle("fl-dim", settings.dimLowQuality && P.shouldDim(built.list));
   }
 
+  // ----- 推文流速:放在底部操作栏"浏览量"那一格的空位里,不占挤满的头部 -----
+  function tweetIdOf(article) {
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
+      const m = a.getAttribute("href").match(/\/status\/(\d+)/);
+      if (m && tweetInfo.has(m[1])) return m[1];
+    }
+    return null;
+  }
+
+  function decorateFlow(article) {
+    const link = article.querySelector('[role="group"] a[href$="/analytics"]');
+    const cell = link && link.parentElement;
+    if (!cell) return;
+    const old = cell.querySelector(".fl-flow");
+    const id = tweetIdOf(article);
+    const info = id && tweetInfo.get(id);
+    const author = info && users.get(info.author);
+    const flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
+    if (!flow) { if (old) old.remove(); return; }
+
+    const sig = `${P.fmtRate(flow.rate)}|${flow.tier}|${settingsVer}`;
+    if (old && old.dataset.flSig === sig) return;
+    if (old) old.remove();
+
+    const chip = document.createElement("span");
+    chip.className = `fl-flow f${flow.tier}`;
+    chip.dataset.flSig = sig;
+    chip.textContent = `${flow.emoji} ${flow.name}`;
+    const modeText = settings.flowMode === "rel" ? "(按粉丝量折算)" : "";
+    chip.title = `流速 ${flow.name}${modeText}\n约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时\n发布 ${flow.ageH < 1 ? Math.round(flow.ageH * 60) + " 分钟" : flow.ageH.toFixed(1) + " 小时"}`;
+    cell.append(chip);
+    // 这一格放不下文字时,只留图标
+    if (cell.scrollWidth > cell.clientWidth + 1) chip.textContent = flow.emoji;
+  }
+
   function cleanup() {
+    document.querySelectorAll(".fl-flow").forEach((f) => f.remove());
     document.querySelectorAll(".fl-line").forEach((l) => l.remove());
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
@@ -233,6 +271,7 @@
     if (!settings) return;
     if (!settings.enabled) { cleanup(); return; }
     document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach(decorateTweet);
+    document.querySelectorAll('article[data-testid="tweet"]').forEach(decorateFlow);
     document.querySelectorAll('[data-testid="UserCell"]').forEach((cell) => {
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
       decorateCell(cell, nameBlock && nameBlock.parentElement);
