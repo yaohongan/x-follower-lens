@@ -430,6 +430,7 @@
   // X 的头部按钮是陆续渲染出来的,所以放好之后还会再量几次。
   function snapRight(chip) {
     if (!chip || !chip.isConnected || chip.dataset.flPlace === "b") return;
+    if (settings.flowPos === "header" && !settings.hideForeign) return;   // 这个模式要让到别家流速标的左边,由 avoidOverlays 负责
     const art = chip.closest("article");
     const un = art && art.querySelector('[data-testid="User-Name"]');
     if (!un) return;
