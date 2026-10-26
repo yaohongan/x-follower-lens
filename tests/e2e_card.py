@@ -26,7 +26,7 @@ with sync_playwright() as p:
     pg.click(".fl-card-btn"); pg.wait_for_timeout(1200)
     check("点开:出现弹层和画布",pg.evaluate("!!document.querySelector('#fl-card-modal canvas')"))
     info=pg.evaluate("(()=>{const c=document.querySelector('#fl-card-modal canvas');const g=c.getContext('2d');const d=g.getImageData(0,0,c.width,c.height).data;let nz=0;for(let i=0;i<d.length;i+=4*500)if(d[i]+d[i+1]+d[i+2]>60)nz++;return {w:c.width,h:c.height,nz,url:c.toDataURL('image/png')}})()")
-    check("画布尺寸 1600×2240,且画了内容(不是空白)",info["w"]==1600 and info["h"]==2240 and info["nz"]>50,(info["w"],info["h"],info["nz"]))
+    check("画布尺寸 1600×2360,且画了内容(不是空白)",info["w"]==1600 and info["h"]==2360 and info["nz"]>50,(info["w"],info["h"],info["nz"]))
     open(os.path.join(tempfile.gettempdir(),"shot_card.png"),"wb").write(base64.b64decode(info["url"].split(",")[1]))
     with pg.expect_download() as dl: pg.click('#fl-card-modal [data-a=dl]')
     check("下载图片:文件名带账号名",dl.value.suggested_filename=="粉丝透镜-coder.png",dl.value.suggested_filename)

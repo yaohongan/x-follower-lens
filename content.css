@@ -93,7 +93,7 @@
 /* 头部右侧:靠右、紧挨菜单区(Grok 图标和"…") */
 .fl-flow.fl-flow-h { margin-left: auto; margin-right: 8px; }
 /* 详情页右边的图标组自己也带 margin-left:auto,空白会被两边平分,标就漂到中间。让标独占这段空白,贴着图标组 */
-.fl-flow.fl-flow-h + * { margin-left: 0 !important; }
+.fl-flow.fl-flow-h + * { margin-left: 0 !important; flex: 0 0 auto !important; }   /* 图标组也可能 flex:1 撑满空白,让它只占自己的宽度 */
 
 /* 关注/粉丝列表里被淡化的账号:鼠标移上去恢复 */
 [data-testid="UserCell"].fl-dim { opacity: 0.45; transition: opacity 0.15s; }
@@ -233,8 +233,11 @@ article.fl-paused .fl-fx .fl-emo, article.fl-paused .fl-fx .fl-fxbg::before, art
 .fl-card-btn:hover { background: rgba(29, 155, 240, 0.2); }
 #fl-card-modal { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0, 0, 0, 0.72); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }
 #fl-card-modal .fl-card-box { display: flex; flex-direction: column; align-items: center; gap: 12px; max-height: 94vh; }
-#fl-card-modal .fl-card-cv { height: min(78vh, 760px); width: auto; aspect-ratio: 800 / 1120; border-radius: 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); background: #0b1020; }
+#fl-card-modal .fl-card-cv { height: min(78vh, 760px); width: auto; aspect-ratio: 800 / 1180; border-radius: 18px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); background: #0b1020; }
 #fl-card-modal .fl-card-bar { display: flex; gap: 10px; }
 #fl-card-modal button { padding: 9px 18px; border: 0; border-radius: 999px; background: #1d9bf0; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; }
 #fl-card-modal button.ghost { background: rgba(255, 255, 255, 0.16); }
 #fl-card-modal .fl-card-msg { min-height: 20px; color: rgba(255, 255, 255, 0.85); font-size: 14px; }
+#fl-card-modal .fl-card-themes { display: flex; gap: 8px; }
+#fl-card-modal .fl-card-themes button { padding: 5px 14px; font-size: 13px; background: rgba(255, 255, 255, 0.16); }
+#fl-card-modal .fl-card-themes button.on { background: #fff; color: #111; }

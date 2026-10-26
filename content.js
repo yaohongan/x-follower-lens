@@ -491,6 +491,13 @@
         levels = flowLevels("b", flow, rate, arrow);
         for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       } else if (mode === "header" && !settings.hideForeign) avoidOverlays(chip, article, row, menu);
+      // 兜底:标和右边图标组之间如果还空着一大段(X 的头部布局各页不一样),把空白全部放到标的左边,让它贴着图标组
+      if (fitted && chip.isConnected && chip.nextElementSibling) {
+        const nx = chip.nextElementSibling;
+        const ic = nx.querySelector("button, [role=button], a, svg") || nx;
+        const gap = ic.getBoundingClientRect().left - chip.getBoundingClientRect().right - 8;
+        if (gap > 16 && gap < 600) chip.style.marginLeft = `${Math.round(gap)}px`;
+      }
     } else {
       cell.append(chip);
       for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
@@ -644,7 +651,7 @@
   async function openCard(handle) {
     closeCard();
     const m = document.createElement("div"); m.id = "fl-card-modal";
-    m.innerHTML = '<div class="fl-card-box"><canvas class="fl-card-cv"></canvas><div class="fl-card-bar"><button data-a="dl">⬇ 下载图片</button><button data-a="cp">📋 复制图片</button><button data-a="x" class="ghost">关闭</button></div><div class="fl-card-msg"></div></div>';
+    m.innerHTML = '<div class="fl-card-box"><canvas class="fl-card-cv"></canvas><div class="fl-card-themes"></div><div class="fl-card-bar"><button data-a="dl">⬇ 下载图片</button><button data-a="cp">📋 复制图片</button><button data-a="x" class="ghost">关闭</button></div><div class="fl-card-msg"></div></div>';
     m.addEventListener("click", (e) => { if (e.target === m) closeCard(); });
     document.documentElement.append(m);
     document.addEventListener("keydown", onCardKey, true);
@@ -652,7 +659,17 @@
     msg.textContent = "生成中…";
     const avatar = await loadAvatar(handle);
     if (!users.has(handle) || !m.isConnected) return;
-    window.FollowerLensCard.draw(cv, cardData(handle, avatar));
+    const cd = cardData(handle, avatar);
+    let theme = "aurora";
+    try { theme = localStorage.getItem("fl_card_theme") || "aurora"; } catch (_) {}
+    const paint = () => {
+      window.FollowerLensCard.draw(cv, cd, theme);
+      m.querySelectorAll(".fl-card-themes button").forEach((b) => b.classList.toggle("on", b.dataset.t === theme));
+    };
+    const tb = m.querySelector(".fl-card-themes");
+    for (const [k, label] of window.FollowerLensCard.THEMES) { const b = document.createElement("button"); b.dataset.t = k; b.textContent = label; tb.append(b); }
+    tb.addEventListener("click", (e) => { const k = e.target.dataset && e.target.dataset.t; if (!k) return; theme = k; try { localStorage.setItem("fl_card_theme", k); } catch (_) {} paint(); });
+    paint();
     msg.textContent = avatar ? "" : "头像没取到,用首字代替(不影响其它内容)";
     const blob = () => new Promise((res) => cv.toBlob(res, "image/png"));
     m.querySelector(".fl-card-bar").addEventListener("click", async (e) => {
