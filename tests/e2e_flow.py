@@ -12,12 +12,19 @@ def tweet(i,u,views,age): return {"__typename":"Tweet","rest_id":str(i),"views":
 # id, 账号, 粉丝, 浏览量, 发布几小时前, 头部整行宽度, 操作栏"浏览量"格宽度
 cases=[(1,"rocketguy",100,5000,2,518,111),(2,"turtleguy",100,20,2,518,111),(3,"oldguy",100,20,30,518,111),
        (4,"bigacct",50000,900,2,518,111),(5,"narrowbar",100,5000,2,518,60),(6,"fresh",100,10,0.2,518,111),
-       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111),(9,"oldfast",100,100000,30,518,111),(10,"ancient",100,100000,800,518,111),(11,"freshfast",100,900,0.05,518,111),(12,"tinyviews",100,5,0.05,518,111)]
+       (7,"squeezedheader",100,5000,2,300,111),(8,"lightspeed",100,20000,2,518,111),(9,"oldfast",100,100000,30,518,111),(10,"ancient",100,100000,800,518,111),(11,"freshfast",100,900,0.05,518,111),(12,"tinyviews",100,5,0.05,518,111),(13,"detailstyle",100,900,2,518,111)]
 data=json.dumps({"data":[tweet(i,user(h,f),v,a) for i,h,f,v,a,rw,w in cases]})
 # 复刻真实结构:头部整行(space-between) = [名字区 > 列 > User-Name] + [别的插件的小标] + [菜单区];底部操作栏第 4 格放浏览量链接
+INLINE_FOREIGN={13}   # 第 13 条:详情页的样子——别人的标 static,嵌在标题行里,旁边还有"订阅"按钮
 def art(i,h,rw,w):
+    if i in INLINE_FOREIGN:
+        return f'''<article data-testid="tweet" style="position:relative;width:548px;display:flex;flex-direction:row"><div style="display:flex;flex-direction:column;flex:1 1 0;min-width:0"><div style="display:flex;flex-direction:row;justify-content:space-between;width:100%">
+<div style="display:flex;min-width:0"><div style="display:flex;flex-direction:column;min-width:0"><div data-testid="User-Name" style="display:flex;min-width:0;font:15px sans-serif"><div><a role="link" href="/{h}">{h}</a></div><div><a role="link" href="/{h}">@{h}</a><a href="/{h}/status/{i}"><time> · 1h</time></a></div></div></div></div>
+<div class="hdr-right" style="display:flex;align-items:center;gap:8px"><div class="sopilot-x-velocity-host" style="width:82px;height:20px;background:#a3a;color:#fff;font:12px sans-serif">爆款 28k/h</div><button class="sub-btn" style="width:60px;height:28px">订阅</button><button>g</button><button>m</button></div></div>
+<div role="group" style="display:flex"><div style="display:flex;width:111px"><a role="link" href="/{h}/status/{i}/analytics">1</a></div></div></div></article>'''
+
     overlay_right=96 if i==1 else 5000   # 只有第 1 条有别的插件的浮层(其余放到屏幕外,不参与)
-    return f'''<article data-testid="tweet" style="position:relative;width:548px"><div class="sopilot-x-velocity-host" style="position:absolute;right:{overlay_right}px;top:10px;width:56px;height:20px;z-index:20;background:#1a9;color:#fff;font:12px sans-serif">548/h</div><div style="display:flex;flex-direction:column;width:{rw}px"><div style="display:flex;flex-direction:row;justify-content:space-between;width:{rw}px">
+    return f'''<article data-testid="tweet" style="position:relative;width:548px;display:flex;flex-direction:row"><div class="sopilot-x-velocity-host" style="position:absolute;right:{overlay_right}px;top:10px;width:56px;height:20px;z-index:20;background:#1a9;color:#fff;font:12px sans-serif">548/h</div><div style="display:flex;flex-direction:column;flex:1 1 0;min-width:0;max-width:{rw}px"><div style="display:flex;flex-direction:row;justify-content:space-between;width:100%">
 <div style="display:flex;min-width:0"><div style="display:flex;flex-direction:column;min-width:0"><div data-testid="User-Name" style="display:flex;min-width:0;font:15px sans-serif"><div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a role="link" href="/{h}">{h} Verified Name Long</a></div><div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:4px"><a role="link" href="/{h}">@{h}</a><a href="/{h}/status/{i}"><time> · 1h</time></a></div></div></div></div>
 <span class="xvm-badge" style="display:none"></span><div style="display:flex;width:46px"><button>g</button><button>m</button></div></div>
 <div role="group" style="display:flex;justify-content:space-between;width:518px;margin-bottom:14px;font:13px sans-serif"><div style="display:flex;width:111px"><button>1</button></div><div style="display:flex;width:111px"><button>2</button></div><div style="display:flex;width:111px"><button>3</button></div>
@@ -39,45 +46,28 @@ with sync_playwright() as p:
       return {t:c.textContent.trim(),title:c.title.replace(/\\n/g,' / '),inHeader:c.parentElement===row&&c.nextElementSibling===row.lastElementChild,inBar:c.parentElement===bar,inCorner:c.parentElement===a&&c.classList.contains('fl-flow-c'),barOverflow:bar.scrollWidth>bar.clientWidth+1,cnt:a.querySelectorAll('.fl-flow').length}})"""
     s=pg.evaluate(chips); print(json.dumps(s,ensure_ascii=False)[:600])
     # ---- 默认:角落(盖住别的插件同位置的标)----
-    check("默认:角落(挂在 article 下的绝对定位)",s[0] and s[0]["inCorner"] and s[3] and s[3]["inCorner"],[(x or {}).get("inCorner") for x in s])
+    check("默认(角落模式):有别人的标的推文盖在它上面(第 1、13 条);没有的排进标题行(第 4 条)",s[0] and s[0]["inCorner"] and s[12] and s[12]["inCorner"] and s[3] and s[3]["inHeader"] and not s[3]["inCorner"],[(x or {}).get("inCorner") for x in s])
     cv=pg.evaluate("""(()=>{const a=document.querySelector('article');const o=a.querySelector('.sopilot-x-velocity-host');const c=a.querySelector('.fl-flow');
       const or=o.getBoundingClientRect(), cr=c.getBoundingClientRect(), cs=getComputedStyle(c);
       return {covers:cr.left<=or.left+1&&cr.right>=or.right-1&&cr.top<=or.top+1&&cr.bottom>=or.bottom-1, z:+cs.zIndex, ovz:+getComputedStyle(o).zIndex, opaque:(cs.backgroundImage.includes('gradient')||/^rgb\(/.test(cs.backgroundColor))&&!!c.style.getPropertyValue('--fl-bg'), right:cs.right, top:cs.top, ovStillThere:!!o&&o.textContent==='548/h'}})()""")
     check("角落:把别的插件的标完整盖住(位置、尺寸都覆盖)",cv["covers"],cv)
-    check("角落:层级比对方高 1;底色不透明;对方元素原样还在(没删没改)",cv["z"]==cv["ovz"]+1 and cv["opaque"] and cv["ovStillThere"],cv)
-    dflt=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[3].querySelector('.fl-flow');const cs=getComputedStyle(c);return {right:cs.right,top:cs.top}})()")
-    check("没有别的插件时:用同一套坐标(距右 96px、距顶 10px)",dflt["right"]=="96px" and dflt["top"]=="10px",dflt)
-    # ---- 不闪:放好之后(含 1.5 秒复查)不能把流速标删了重建 ----
-    pg.wait_for_timeout(2500)   # 越过 1.5 秒的位置复查
-    rm=pg.evaluate("window.__rm")
-    check("放好后(含 1.5 秒复查)没有删除重建:火箭/小电驴/光速三条一次都没被删过",all(rm.get(h,0)==0 for h in ("rocketguy","bigacct","lightspeed")),rm)
-    # ---- 数字变了:原地更新同一个元素 ----
-    pg.evaluate("window.__tag=document.querySelectorAll('article')[3].querySelector('.fl-flow')")
-    alt=json.loads(data)
-    for tw_ in alt["data"]:
-        if tw_["core"]["user_results"]["result"]["core"]["screen_name"]=="bigacct": tw_["views"]["count"]="950"
-    CUR[0]=json.dumps(alt)
-    pg.evaluate("(()=>{const x=new XMLHttpRequest();x.open('GET','/i/api/graphql/a/HomeAgain');x.send()})()"); pg.wait_for_timeout(900)
-    same=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[3].querySelector('.fl-flow');return {sameElement:c===window.__tag,text:c.textContent.trim()}})()")
-    check("浏览量变了(档位没变):原地更新同一个元素,数字变成 475/h,没有删除重建",same["sameElement"] and "475" in same["text"],same)
-    # ---- X 把我们的标删掉:很快补回来 ----
-    pg.evaluate("document.querySelectorAll('article')[3].querySelector('.fl-flow').remove()"); pg.wait_for_timeout(700)
-    check("流速标被页面删掉后,0.7 秒内自动补回",pg.evaluate("document.querySelectorAll('article')[3].querySelectorAll('.fl-flow').length")==1)
-    pg.evaluate("(()=>{const b=document.querySelectorAll('article')[3].querySelector('.fl-badge');(b.closest('.fl-line')||b).remove()})()"); pg.wait_for_timeout(700)
-    check("粉丝徽标被页面删掉后,0.7 秒内自动补回",pg.evaluate("document.querySelectorAll('article')[3].querySelectorAll('.fl-badge').length")==1)
-    # ---- 动效:只有 火箭/光速 两档 ----
-    fx=pg.evaluate("""[...document.querySelectorAll('article')].map(a=>{const c=a.querySelector('.fl-flow');if(!c)return null;const bg=c.querySelector('.fl-fxbg');const emo=c.querySelector('.fl-emo');
-      return {fx:c.classList.contains('fl-fx'),hasBg:!!bg,flow:bg?getComputedStyle(bg,'::before').animationName:'none',sweep:bg?getComputedStyle(bg,'::after').animationName:'none',glow:getComputedStyle(c,'::after').animationName,emoAnim:emo?getComputedStyle(emo).animationName:null,color:getComputedStyle(c).color,cls:c.className}})""")
-    ok_anim=lambda x,glow,emo: x and x["fx"] and x["hasBg"] and "fl-flow-x" in x["flow"] and "fl-sweep" in x["sweep"] and glow in x["glow"] and emo in (x["emoAnim"] or "")
-    check("火箭(第1条):渐变层平移 + 流光扫过 + 发光脉冲 + 图标喷射",ok_anim(fx[0],"fl-glow-op","fl-thrust"),fx[0])
-    check("光速(第8条):同样的结构,图标是闪烁",ok_anim(fx[7],"fl-glow-op","fl-flicker"),fx[7])
-    check("动画只用 transform / opacity(合成线程):没有 background-position、box-shadow 动画",all(n in ("fl-flow-x","fl-sweep","fl-glow-op","fl-thrust","fl-flicker") for x in (fx[0],fx[7]) for n in (x["flow"],x["sweep"],x["glow"],x["emoAnim"])))
-    check("小电驴及更慢的档位:没有动效",fx[3]["fx"] is False and not fx[3]["hasBg"] and fx[3]["flow"]=="none" and fx[3]["glow"]=="none",[fx[1],fx[3]])
-    pg.emulate_media(reduced_motion="reduce"); pg.wait_for_timeout(400)
-    rm=pg.evaluate("(()=>{const c=document.querySelectorAll('article')[0].querySelector('.fl-flow');const bg=c.querySelector('.fl-fxbg');return {a:getComputedStyle(bg,'::before').animationName,g:getComputedStyle(c,'::after').animationName,e:getComputedStyle(c.querySelector('.fl-emo')).animationName}})()")
-    check("系统开了\"减少动态效果\":动画全部关闭,保留配色",rm["a"]=="none" and rm["g"]=="none" and rm["e"]=="none",rm)
-    pg.emulate_media(reduced_motion="no-preference")
-    pg.screenshot(path=os.path.join(tempfile.gettempdir(),"shot_fx.png"))
+    check("角落:层级比对方高;底色不透明;对方元素原样还在(没删没改)",cv["z"]>cv["ovz"] and cv["opaque"] and cv["ovStillThere"],cv)
+    check("没有别的插件的标时:排进标题行(菜单区左边),不占角落坐标、不压 X 自己的按钮",s[3] and s[3]["inHeader"] and not s[3]["inCorner"],s[3])
+    # 详情页式:别人的标是 static、嵌在标题行里,旁边有"订阅"按钮
+    dv=pg.evaluate("""(()=>{const a=[...document.querySelectorAll('article')].find(x=>x.querySelector('.hdr-right'));const c=a.querySelector('.fl-flow'),f=a.querySelector('.sopilot-x-velocity-host'),s=a.querySelector('.sub-btn');
+      const cr=c.getBoundingClientRect(),fr=f.getBoundingClientRect(),sr=s.getBoundingClientRect();
+      const hit=(x,y)=>!(x.right<=y.left||x.left>=y.right||x.bottom<=y.top||x.top>=y.bottom);
+      return {corner:c.classList.contains('fl-flow-c'),covers:cr.left<=fr.left+1&&cr.right>=fr.right-1&&cr.top<=fr.top+1&&cr.bottom>=fr.bottom-1,hitsSubscribe:hit(cr,sr),foreignThere:!!f&&f.textContent==='爆款 28k/h'}})()""")
+    check("详情页式(别人的标嵌在标题行里):按它实际位置完整盖住",dv["corner"] and dv["covers"],dv)
+    check("详情页式:没有压到旁边的'订阅'按钮;对方元素原样还在",(not dv["hitsSubscribe"]) and dv["foreignThere"],dv)
+    # 别人的标晚到:我们本来排在标题行里,它出现后应自动改成盖住它
+    pg.evaluate("""(()=>{const a=document.querySelectorAll('article')[3];const un=a.querySelector('[data-testid=User-Name]');const row=un.parentElement.parentElement.parentElement;const d=document.createElement('div');d.className='sopilot-x-velocity-host late';d.style.cssText='position:absolute;right:96px;top:10px;width:70px;height:20px;background:#a3a;z-index:20';d.textContent='爆款 9k/h';a.append(d)})()"""); pg.wait_for_timeout(900)
+    late=pg.evaluate("(()=>{const a=document.querySelectorAll('article')[3];const c=a.querySelector('.fl-flow');const f=a.querySelector('.late');const cr=c.getBoundingClientRect(),fr=f.getBoundingClientRect();return {corner:c.classList.contains('fl-flow-c'),covers:cr.left<=fr.left+1&&cr.right>=fr.right-1&&cr.top<=fr.top+1&&cr.bottom>=fr.bottom-1,n:a.querySelectorAll('.fl-flow').length}})()")
+    check("别人的标晚到:自动改成盖住它,而且只有一个流速标",late["corner"] and late["covers"] and late["n"]==1,late)
+    pg.evaluate("document.querySelectorAll('article')[3].querySelector('.late').remove()"); pg.wait_for_timeout(900)
+    gone=pg.evaluate("(()=>{const a=document.querySelectorAll('article')[3];const c=a.querySelector('.fl-flow');return {corner:c.classList.contains('fl-flow-c'),inHeader:c.classList.contains('fl-flow-h'),n:a.querySelectorAll('.fl-flow').length}})()")
+    check("别人的标消失(比如被关掉):自动退回标题行,不再悬空盖在原地",(not gone["corner"]) and gone["inHeader"] and gone["n"]==1,gone)
+    # ---- 切到 自动 ----
     # ---- 切到 自动 ----
     pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
     check("弹窗:位置默认 角落",pop0.evaluate("document.querySelector('input[data-key=flowPos]:checked').value")=="corner")

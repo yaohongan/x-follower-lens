@@ -294,13 +294,29 @@
     return null;
   }
 
-  // 别的插件(比如 SoPilot)会在 article 下挂绝对定位的浮层,压在头部右侧。
-  // 返回这些与头部这一行重叠的浮层(不含我们自己的)。
+  // 别的插件的流速标。SoPilot 在时间线上是挂在 article 下的绝对定位浮层,在推文详情页上却是 position: static、
+  // 直接嵌在标题行里,所以不能靠"绝对定位 + article 直接子元素"来找,要按它自己的标识找,不管它在哪。
+  const FOREIGN_SEL = '[class*="sopilot-x-velocity-host"], [class*="xvm-badge"]';
+  function findForeignChip(article) {
+    const ar = article.getBoundingClientRect();
+    for (const el of article.querySelectorAll(FOREIGN_SEL)) {
+      if (isOurs(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0)) continue;                                 // display:none 的(没数据的推文)不算
+      if (r.right <= ar.left || r.left >= ar.right || r.bottom <= ar.top || r.top >= ar.bottom) continue;   // 得真的落在这条推文范围内
+      return el;
+    }
+    return null;
+  }
+
+  // 压在头部这一行右边的"别人的东西":别人的流速标 + 其它绝对定位的浮层。
   function headerOverlays(article, row) {
     const rowRect = row.getBoundingClientRect();
     const out = [];
+    const foreign = findForeignChip(article);
+    if (foreign) out.push(foreign);
     for (const el of article.children) {
-      if (el.contains(row) || isOurs(el)) continue;       // 自己的元素(比如上一次放的角落标)不算"别人的浮层"
+      if (el.contains(row) || isOurs(el) || el === foreign || (foreign && el.contains(foreign))) continue;   // 自己的元素不算"别人的浮层"
       const pos = getComputedStyle(el).position;
       if (pos !== "absolute" && pos !== "fixed") continue;
       const r = el.getBoundingClientRect();
@@ -336,21 +352,14 @@
     return r;
   }
 
-  // 固定在标题行右上角:坐标与常见插件的流速标一致(距右 96px、距顶 10px)。
-  // 那个位置已有别的插件的标时,宽高对齐它、层级比它高 1,把它完整盖住;没有就用默认值。
-  function placeCorner(chip, article, row) {
-    const others = [...article.children].filter((el) => el !== chip && !isOurs(el) && getComputedStyle(el).position === "absolute" && el.getBoundingClientRect().width > 0 && (() => {
-      const r = el.getBoundingClientRect(), rr = row.getBoundingClientRect();
-      return r.bottom > rr.top && r.top < rr.bottom && r.right > rr.left && r.left < rr.right;
-    })());
-    let right = 96, top = 10, minW = 0, minH = 0, z = 30;
-    if (others.length) {
-      const ar = article.getBoundingClientRect(), o = others[0], r = o.getBoundingClientRect();
-      right = Math.round(ar.right - r.right); top = Math.round(r.top - ar.top); minW = Math.round(r.width); minH = Math.round(r.height);
-      z = (parseInt(getComputedStyle(o).zIndex, 10) || 0) + 1;
-    }
+  // 盖住别人的流速标:按它实际渲染出来的矩形对位(右边缘对齐、顶部对齐、宽高至少一样、层级高 1),不靠猜坐标。
+  // 只画在上面,不删不改对方的元素。我们的标是 article 里的绝对定位元素,所以坐标按 article 的边来算。
+  function placeCorner(chip, article, foreign) {
+    const ar = article.getBoundingClientRect(), r = foreign.getBoundingClientRect();
+    const right = Math.round(ar.right - r.right), top = Math.round(r.top - ar.top);
+    const z = (parseInt(getComputedStyle(foreign).zIndex, 10) || 0) + 1;
     const st = chip.style;
-    const want = { position: "absolute", right: right + "px", top: top + "px", zIndex: String(z), minWidth: minW + "px", minHeight: minH + "px", textAlign: "center", boxSizing: "border-box" };
+    const want = { position: "absolute", right: right + "px", top: top + "px", zIndex: String(Math.max(z, 30)), minWidth: Math.round(r.width) + "px", minHeight: Math.round(r.height) + "px", textAlign: "center", boxSizing: "border-box" };
     for (const k in want) if (st[k] !== want[k]) st[k] = want[k];
   }
 
@@ -406,7 +415,13 @@
     // 稳态快路径:什么都没变,直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排)
     const key = `${flow.tier}|${settingsVer}`;
     const sig0 = `${key}|${rate}|${arrow}`;
-    if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
+    if (old && old.isConnected && old.dataset.flSig0 === sig0) {
+      // corner 模式下,别的插件的标晚到/消失/从隐藏变可见时要跟上。判断"可见",不是"有没有这个元素":
+      // 别的插件常先放一个 display:none 的占位,数据到了才显示,元素一直在。
+      // 这里只读不写,浏览器布局是干净的就几乎没有开销;和放置时记下的状态(flFN)比,变了才重建一次
+      if (settings.flowPos !== "corner" || (findForeignChip(article) ? "1" : "0") === old.dataset.flFN) return;
+      old.dataset.flSig0 = ""; old.dataset.flKey = "";
+    }
     // 只是数字变了(每次刷新浏览量都会变一点):原地改文字和提示。
     // 不删不重建,不重新定位,动画也不会重新开始——否则每次数据刷新都会"闪一下"
     if (old && old.isConnected && old.dataset.flKey === key) {
@@ -428,9 +443,11 @@
     const headerOk = !!menu && !menu.classList.contains("fl-flow");
     const cell = link && link.parentElement;
     const mode = settings.flowPos;
-    const cornerOk = mode === "corner" && getComputedStyle(article).position !== "static";
+    // corner:找到别人的流速标就盖在它上面;没找到就排进标题行(绝不凭空占一个角落坐标,那会压到 X 自己的按钮)
+    const foreign = mode === "corner" ? findForeignChip(article) : null;
+    const cornerOk = !!foreign && getComputedStyle(article).position !== "static";
     const overlaid = headerOk && headerOverlays(article, row).length > 0;
-    let place = cornerOk ? "c" : headerOk && (mode === "header" || (mode === "auto" && !overlaid) || (mode === "corner" && !cornerOk)) ? "h" : cell ? "b" : headerOk ? "h" : "";
+    let place = cornerOk ? "c" : headerOk && (mode === "header" || mode === "corner" || (mode === "auto" && !overlaid)) ? "h" : cell ? "b" : headerOk ? "h" : "";
     if (!place) { if (old) old.remove(); return; }
 
     if (old) old.remove();
@@ -439,6 +456,7 @@
     chip.className = `fl-flow f${flow.tier}` + (place === "h" ? " fl-flow-h" : place === "c" ? " fl-flow-c" : "") + (settings.flowFx && flow.tier >= 3 ? " fl-fx" : "");
     chip.dataset.flKey = key;
     chip.dataset.flSig0 = sig0;
+    chip.dataset.flFN = findForeignChip(article) ? "1" : "0";
     chip.title = flowTooltip(flow, trend);
 
     // 从详细到简略,放得下哪个就用哪个;记下选了第几档,之后原地更新文字时沿用
@@ -446,11 +464,14 @@
     let level = 0;
     if (place === "c") {
       chip.style.setProperty("--fl-bg", pageBg());
+      // 先设成绝对定位再加入页面。真实 X 的 article 是 flex 行,如果先加入,标会有一瞬间是"在流中的 flex 子元素",
+      // 把别人的标和标题行的按钮挤歪(页面抖一下),这时量出来的位置也是歪的
+      chip.style.position = "absolute";
       article.append(chip);
-      placeCorner(chip, article, row);
+      placeCorner(chip, article, foreign);
       const cr = contentRight(un);
       let fitted = false;
-      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); placeCorner(chip, article, row); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); placeCorner(chip, article, foreign); if (chip.getBoundingClientRect().left >= cr + 6) { fitted = true; break; } }
       // 连图标都会压住名字:改放到底部浏览量旁
       if (!fitted && cell) {
         place = "b";
@@ -473,24 +494,31 @@
     chip.dataset.flPlace = place;
     chip.dataset.flLevel = String(level);
 
-    // 别的插件的浮层可能比我们晚到:放好 1.5 秒后复查一次位置(只一次)。
+    // 别的插件的标可能比我们晚到(也可能被关掉):放好 1.5 秒和 4 秒后各复查一次位置。
     // 只在"位置决策真的变了"时才重建;否则原地微调,不删不重建(重建会让标消失一瞬间)
     if (!flowRechecked.has(article)) {
       flowRechecked.add(article);
-      setTimeout(() => {
+      const recheck = () => {
         const c2 = article.querySelector(".fl-flow");
         if (!c2 || !c2.isConnected) return;
         const un2 = article.querySelector('[data-testid="User-Name"]');
         const row2 = un2 && headerRow(un2);
         if (!row2) return;
         const pl = c2.dataset.flPlace, md = settings.flowPos;
-        if (pl === "c") { placeCorner(c2, article, row2); return; }
+        const foreign2 = findForeignChip(article);
+        if (md === "corner") {
+          if (pl === "c" && foreign2) { placeCorner(c2, article, foreign2); return; }
+          if ((pl === "c") !== !!foreign2) { c2.dataset.flKey = ""; c2.dataset.flSig0 = ""; scheduleRender(); }   // 别人的标出现了 / 消失了
+          return;
+        }
         if (pl === "h" && md === "header") { avoidOverlays(c2, article, row2, row2.lastElementChild); return; }
         if (md === "auto") {
           const want = headerOverlays(article, row2).length > 0 ? "b" : "h";
           if (want !== pl) { c2.dataset.flKey = ""; c2.dataset.flSig0 = ""; scheduleRender(); }
         }
-      }, 1500);
+      };
+      setTimeout(recheck, 1500);
+      setTimeout(recheck, 4000);
     }
   }
 
