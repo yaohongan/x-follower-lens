@@ -3,7 +3,7 @@
   const HIST_KEY = "fl_hist";
   const DEFAULTS = {
     enabled: true, showRatio: false, tierColors: true, hoverCard: true,
-    trackHistory: true, dimLowQuality: true, flow: true, flowMode: "abs", layout: "auto", maxTags: 3, debug: false,
+    trackHistory: true, dimLowQuality: true, flow: true, flowMode: "abs", flowPos: "header", layout: "auto", maxTags: 3, debug: false,
     tags: { relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
   };
   let settings = null;

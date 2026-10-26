@@ -234,30 +234,66 @@
     return null;
   }
 
+  // 别的插件(比如 SoPilot)会在 article 下挂绝对定位的浮层,压在头部右侧。
+  // 发现与头部这一行重叠的浮层,就把流速标挪到它的左边,不盖也不被盖。
+  function avoidOverlays(chip, article, menu) {
+    const menuLeft = menu.getBoundingClientRect().left;
+    const rowRect = chip.parentElement.getBoundingClientRect();
+    let gap = 8;
+    for (const el of article.children) {
+      if (el.contains(chip)) continue;
+      const pos = getComputedStyle(el).position;
+      if (pos !== "absolute" && pos !== "fixed") continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || r.bottom <= rowRect.top || r.top >= rowRect.bottom) continue;
+      gap = Math.max(gap, menuLeft - r.left + 6);
+    }
+    const v = Math.round(gap) + "px";
+    if (chip.style.marginRight !== v) chip.style.marginRight = v;
+  }
+
   function decorateFlow(article) {
+    const un = article.querySelector('[data-testid="User-Name"]');
     const link = article.querySelector('[role="group"] a[href$="/analytics"]');
-    const cell = link && link.parentElement;
-    if (!cell) return;
-    const old = cell.querySelector(".fl-flow");
+    const old = article.querySelector(".fl-flow");
     const id = tweetIdOf(article);
     const info = id && tweetInfo.get(id);
     const author = info && users.get(info.author);
     const flow = settings.flow && info ? P.flowOf(info, author ? author.followers : 0, Date.now(), settings.flowMode) : null;
     if (!flow) { if (old) old.remove(); return; }
 
-    const sig = `${P.fmtRate(flow.rate)}|${flow.tier}|${settingsVer}`;
-    if (old && old.dataset.flSig === sig) return;
+    // 位置:头部右侧(菜单区左边的空档,默认)或底部操作栏。头部结构不符时退回操作栏。
+    const row = un && headerRow(un);
+    const menu = row && row.lastElementChild;
+    const inHeader = settings.flowPos !== "bar" && !!menu && !menu.classList.contains("fl-flow");
+    const cell = link && link.parentElement;
+    if (!inHeader && !cell) { if (old) old.remove(); return; }
+
+    const sig = `${P.fmtRate(flow.rate)}|${flow.tier}|${settingsVer}|${inHeader ? "h" : "b"}`;
+    if (old && old.isConnected && old.dataset.flSig === sig) {
+      if (inHeader) avoidOverlays(old, article, menu);
+      return;
+    }
     if (old) old.remove();
 
     const chip = document.createElement("span");
-    chip.className = `fl-flow f${flow.tier}`;
+    chip.className = `fl-flow f${flow.tier}` + (inHeader ? " fl-flow-h" : "");
     chip.dataset.flSig = sig;
     chip.textContent = `${flow.emoji} ${flow.name}`;
     const modeText = settings.flowMode === "rel" ? "(按粉丝量折算)" : "";
     chip.title = `流速 ${flow.name}${modeText}\n约 ${Math.round(flow.rate).toLocaleString()} 次浏览/小时\n发布 ${flow.ageH < 1 ? Math.round(flow.ageH * 60) + " 分钟" : flow.ageH.toFixed(1) + " 小时"}`;
-    cell.append(chip);
-    // 这一格放不下文字时,只留图标
-    if (cell.scrollWidth > cell.clientWidth + 1) chip.textContent = flow.emoji;
+    if (inHeader) {
+      // 先撤下这条推文已有的粉丝徽标,等流速标就位后,render 会按"放得下行内、放不下换行"重新放
+      const rec = placed.get(un);
+      if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); placed.delete(un); }
+      menu.before(chip);
+      // 不算徽标,名字和 @ID 自己都放不下时,才只留图标
+      if (crowded(un, chip)) chip.textContent = flow.emoji;
+      avoidOverlays(chip, article, menu);
+    } else {
+      cell.append(chip);
+      if (cell.scrollWidth > cell.clientWidth + 1) chip.textContent = flow.emoji;   // 这一格放不下文字
+    }
   }
 
   function cleanup() {
@@ -270,8 +306,9 @@
   function render() {
     if (!settings) return;
     if (!settings.enabled) { cleanup(); return; }
-    document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach(decorateTweet);
+    // 先放流速标,再放粉丝徽标:头部放不下时,让粉丝徽标换行,流速标保留文字
     document.querySelectorAll('article[data-testid="tweet"]').forEach(decorateFlow);
+    document.querySelectorAll('article[data-testid="tweet"] [data-testid="User-Name"]').forEach(decorateTweet);
     document.querySelectorAll('[data-testid="UserCell"]').forEach((cell) => {
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
       decorateCell(cell, nameBlock && nameBlock.parentElement);

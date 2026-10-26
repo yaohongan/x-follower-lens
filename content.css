@@ -65,6 +65,9 @@
 .fl-flow.f3 { background: rgba(255, 159, 10, 0.18);  color: rgb(214, 126, 0); }
 .fl-flow.f4 { background: linear-gradient(135deg, rgba(249, 24, 128, 0.18), rgba(255, 159, 10, 0.2)); color: rgb(226, 22, 116); }
 
+/* 头部右侧:靠右、紧挨菜单区(Grok 图标和"…") */
+.fl-flow.fl-flow-h { margin-left: auto; margin-right: 8px; }
+
 /* 关注/粉丝列表里被淡化的账号:鼠标移上去恢复 */
 [data-testid="UserCell"].fl-dim { opacity: 0.45; transition: opacity 0.15s; }
 [data-testid="UserCell"].fl-dim:hover { opacity: 1; }

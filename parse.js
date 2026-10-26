@@ -12,6 +12,7 @@
     dimLowQuality: true,  // 在关注/粉丝列表里淡化疑似互粉号、低活跃号
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
+    flowPos: "header",    // 流速位置:header 头部右侧 / bar 底部操作栏
     layout: "auto",       // 徽标位置:auto 自动 / inline 行内 / below 单独一行
     maxTags: 3,           // 徽标里最多显示几个标签(0 = 只显示粉丝数)
     debug: false,         // 左下角调试条
