@@ -13,6 +13,7 @@
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
     cardBtn: true,        // 个人主页上显示「生成名片」按钮
+    flowReach: true,      // 流速标后面加"破圈 N×"(浏览量超过粉丝数时);悬停卡里总是显示破圈倍数
     avatarSpin: false,    // 头像环转起来(默认静态,不晃眼)
     avatarFx: true,       // 头像特效:按这条推文的流速,给作者头像加圈和小角色
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
@@ -332,11 +333,25 @@
     return { recent, ratio, dir: ratio >= 1.3 ? "up" : ratio <= 0.5 ? "down" : "flat" };
   }
 
+  // 破圈倍数:累计浏览量 ÷ 作者粉丝数。大于 1 说明传到了粉丝圈外面。粉丝数拿不到(或为 0)就不算。
+  // 分四档:1–3× 破圈 / 3–10× 出圈 / 10–50× 爆圈 / ≥50× 全网;lv 0 表示还在粉丝圈里(不到 1 倍)
+  const REACH_NAMES = ["", "破圈", "出圈", "爆圈", "全网"];
+  const REACH_CIRCLES = [0, 1, 2, 3, 3];
+  function reachOf(views, followers) {
+    if (!(followers > 0) || !(views >= 0)) return null;
+    const x = views / followers;
+    const lv = x < 1 ? 0 : x < 3 ? 1 : x < 10 ? 2 : x < 50 ? 3 : 4;
+    return {
+      x, lv, name: REACH_NAMES[lv], circles: "◎".repeat(REACH_CIRCLES[lv]),
+      text: x >= 100 ? "≥100×" : x >= 10 ? Math.round(x) + "×" : x < 0.1 ? "<0.1×" : x.toFixed(1) + "×",
+    };
+  }
+
   function fmtRate(r) {
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore };
+  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, reachOf };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

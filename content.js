@@ -379,7 +379,7 @@
 
 
   // 图标单独包一层(动效要让图标单独抖动),其余是文字
-  function setChip(chip, text, emoji) {
+  function setChip(chip, text, emoji, rc) {
     chip.textContent = "";
     if (chip.classList.contains("fl-fx")) {      // 动效的渐变层(放在最底下,不挡文字)
       const bg = document.createElement("span");
@@ -390,6 +390,14 @@
     e.className = "fl-emo";
     e.textContent = emoji;
     chip.append(e, document.createTextNode(text.slice(emoji.length)));
+    if (rc) chip.append(reachPill(rc));
+  }
+  // 破圈小标签:同一个紫色,档位越高越深(◎ 的个数也表示档位,不单靠颜色)
+  function reachPill(rc) {
+    const s = document.createElement("span");
+    s.className = `fl-reach l${rc.lv}`;
+    s.textContent = `${rc.circles} ${rc.name} ${rc.text}`;
+    return s;
   }
 
   const fmtAge = (h) => (h < 1 ? Math.round(h * 60) + " 分钟" : h < 48 ? h.toFixed(1) + " 小时" : Math.round(h / 24) + " 天");
@@ -397,25 +405,28 @@
   const flowRechecked = new WeakSet();   // 每条推文只在放好后复查一次位置
   const flowCardData = new WeakMap();    // article -> 悬停信息卡要用的数据(芯片和头像特效共用)
 
-  function flowLevels(place, flow, rate, arrow) {
+  // 从详细到简略的几档写法;r = 这一档带不带破圈小标签(只有头部、且放得下的最详细一档带)
+  function flowLevels(place, flow, rate, arrow, hasReach) {
+    const full = `${flow.emoji} ${flow.name} ${rate}${arrow}`;
     return place !== "b"
-      ? [`${flow.emoji} ${flow.name} ${rate}${arrow}`, `${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`]
-      : [`${flow.emoji} ${rate}${arrow}`, `${flow.emoji}${arrow}`];
+      ? [...(hasReach ? [{ t: full, r: true }] : []), { t: full, r: false }, { t: `${flow.emoji} ${rate}${arrow}`, r: false }, { t: `${flow.emoji}${arrow}`, r: false }]
+      : [{ t: `${flow.emoji} ${rate}${arrow}`, r: false }, { t: `${flow.emoji}${arrow}`, r: false }];
   }
 
   // 悬停信息卡:鼠标放到流速标、头像上的小图标时,立刻显示这条推文的流速信息(不用等浏览器原生提示的 1 秒延迟)
   function flowCardHtml(d) {
-    const { flow, trend, views } = d;
+    const { flow, trend, views, rc } = d;
     const MOOD = ["还在热身", "稳稳地骑", "已经跑起来了", "正在升空", "全速冲刺"];
     const rows = [];
     rows.push(["平均每小时被看", `<b>${Math.round(flow.rate).toLocaleString()} 次</b>`]);
     rows.push(["累计被看", Number(views).toLocaleString() + " 次"]);
     rows.push(["已发出", fmtAge(flow.ageH)]);
+    if (rc) rows.push(["破圈倍数", rc.lv >= 1 ? `<b>${rc.text}</b> 的粉丝量 · ${rc.name}` : `${rc.text}(还在粉丝圈里)`]);
     rows.push(["怎么算的", settings.flowMode === "rel" ? "再按作者粉丝量折算成相对速度" : "累计被看 ÷ 已发出的时长"]);
     if (trend) rows.push(["近段走势", `约 ${Math.round(trend.recent).toLocaleString()} 次/小时 ${trend.dir === "up" ? '<span class="up">↗ 越跑越快</span>' : trend.dir === "down" ? '<span class="down">↘ 慢下来了</span>' : "和全程差不多"}`]);
     const tiers = settings.flowMode === "rel" ? "" : `<div class="fl-tip-r"><span>速度刻度</span><b style="font-weight:400;font-size:11.5px">🐢&lt;30 🚲&lt;150 🛵&lt;600 🚀&lt;3k ⚡≥3k</b></div>`;
-    const note = flow.fresh ? "刚发出来,数字还会变" : flow.old ? "发出已久,这是整段时间的平均值" : "";
-    return `<div class="fl-tip-h">${flow.emoji} ${flow.name} · ${MOOD[flow.tier] || ""}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + tiers + (note ? `<div class="fl-tip-n">${note}</div>` : "");
+    const notes = [flow.fresh ? "刚发出来,数字还会变" : flow.old ? "发出已久,这是整段时间的平均值" : "", rc ? "破圈倍数 = 累计被看 ÷ 作者粉丝数" : ""].filter(Boolean);
+    return `<div class="fl-tip-h">${flow.emoji} ${flow.name} · ${MOOD[flow.tier] || ""}${rc && rc.lv >= 1 ? ` · ${rc.circles} ${rc.name}` : ""}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + tiers + notes.map((n) => `<div class="fl-tip-n">${n}</div>`).join("");
   }
 
   function bindFlowHover(el, article) {
@@ -470,16 +481,20 @@
     const rate = `${P.fmtRate(flow.rate)}/h`;
     // key = 结构(档位 + 设置);sig0 = 结构 + 数字。
     // 稳态快路径:什么都没变,直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排)
-    const key = `${flow.tier}|${settingsVer}`;
+    const rc = author && P.reachOf(info.views, author.followers);
+    const showRc = settings.flowReach && rc && rc.lv >= 1 ? rc : null;   // 浏览量超过粉丝数才在标上显示
+    const key = `${flow.tier}|${settingsVer}|${showRc ? showRc.lv : 0}`;
     const sig0 = `${key}|${rate}|${arrow}`;
     if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
-    flowCardData.set(article, { flow, trend, views: info.views });
+    flowCardData.set(article, { flow, trend, views: info.views, rc });
     // 只是数字变了(每次刷新浏览量都会变一点):原地改文字。不删不重建、不重新定位、动画也不会重新开始
     if (old && old.isConnected && old.dataset.flKey === key) {
-      const levels = flowLevels(old.dataset.flPlace, flow, rate, arrow);
-      const text = levels[Math.min(+old.dataset.flLevel || 0, levels.length - 1)];
-      const node = old.lastChild;
-      if (node && node.nodeType === 3) node.nodeValue = text.slice(flow.emoji.length);
+      const levels = flowLevels(old.dataset.flPlace, flow, rate, arrow, !!showRc);
+      const lv = levels[Math.min(+old.dataset.flLevel || 0, levels.length - 1)];
+      const node = [...old.childNodes].find((n) => n.nodeType === 3);
+      if (node) node.nodeValue = lv.t.slice(flow.emoji.length);
+      const pill = old.querySelector(".fl-reach");
+      if (pill && showRc) pill.textContent = `${showRc.circles} ${showRc.name} ${showRc.text}`;
       old.dataset.flSig0 = sig0;
       snapRight(old);
       return;
@@ -507,7 +522,7 @@
     bindFlowHover(chip, article);
 
     // 从详细到简略,放得下哪个就用哪个;记下选了第几档,之后原地更新文字时沿用
-    let levels = flowLevels(place, flow, rate, arrow);
+    let levels = flowLevels(place, flow, rate, arrow, !!showRc);
     let level = 0;
     if (place === "h") {
       // 先撤下这条推文已有的粉丝徽标,等流速标就位后,render 会按"放得下行内、放不下换行"重新放
@@ -515,18 +530,18 @@
       if (rec) { rec.badge.remove(); if (rec.line) rec.line.remove(); placed.delete(un); }
       menu.before(chip);
       let fitted = false;
-      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (!crowded(un, chip)) { fitted = true; break; } }
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i].t, flow.emoji, levels[i].r ? showRc : null); if (!crowded(un, chip)) { fitted = true; break; } }
       // 连图标都会压住名字或时间(名字特别长的时候):改放到底部浏览量旁,绝不遮挡文字
       if (!fitted && cell) {
         place = "b"; chip.classList.remove("fl-flow-h"); chip.remove();
         cell.append(chip);
-        levels = flowLevels("b", flow, rate, arrow);
-        for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+        levels = flowLevels("b", flow, rate, arrow, false);
+        for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i].t, flow.emoji, levels[i].r ? showRc : null); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       } else if (mode === "header" && !settings.hideForeign) avoidOverlays(chip, article, row, menu);
       snapRight(chip);
     } else {
       cell.append(chip);
-      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i], flow.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
+      for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i].t, flow.emoji, levels[i].r ? showRc : null); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
     }
     chip.dataset.flPlace = place;
     chip.dataset.flLevel = String(level);
