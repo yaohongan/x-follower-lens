@@ -14,61 +14,55 @@
 
 **详细说明(Description,中文)**
 ```
-X 不直接显示别人的粉丝数。看到一个陌生账号,想知道它值不值得关注,得点进主页才行。
-粉丝透镜把这一步省掉了:在 X 的信息流和关注列表里,直接在用户名旁边显示粉丝数,并告诉你这个账号大概是什么类型。
+X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。粉丝透镜把这些直接放到信息流里:
 
 【主要功能】
-• 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数(1万以内精确显示)
-• 分级配色:按粉丝量分档上色,一眼分出量级
+• 推文流速:按"每小时浏览量"给每条推文标出 龟速 / 自行车 / 小电驴 / 火箭 / 光速 五档,带具体数字和 ↗↘ 升温降温趋势;鼠标放上去看浏览量、发布时间和算法口径
+• 头像流速环:作者头像按这条推文的流速加一圈环,每一档一个造型(默认静态,不晃眼;设置里可以让它转起来)
+• 内容方向标签:按账号简介和刷到的推文,标出这个博主主要做什么(AI编程、智能体、AI视频、AI设计、出海变现、投资……),每个方向一种颜色,词典可自定义
+• 账号名片:在个人主页一键生成带头像、主页地址和"粉丝质量指数"的图片,三种风格,可下载或复制后直接发到 X
+• 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数
 • 质量标签:互关 / 关注了你 / 大V / 高互动 / 低活跃 / 疑似互粉号 / 新号 / 老号
 • 悬停详情卡:精确粉丝数、关注数、粉丝/关注比、推文数、注册时间、互动率
 • 粉丝数变化:在你的浏览器本地记录你刷到过的账号,显示"近 7 天涨了多少"
-• 列表淡化:在关注 / 粉丝列表里,把疑似互粉号和低活跃号淡化,更快找到值得关注的人
-• 头像光环(趣味模式,默认关闭):按推文流速给作者头像加一圈光环
-• 内容方向:按简介和推文给博主打方向标签(AI编程、智能体、AI视频、出海变现、投资……),词典可自定义
-• 推文流速:按每小时浏览量标出龟速、自行车、小电驴、火箭、光速,带具体数字和 ↗↘ 升温降温趋势;火箭、光速两档带流光发光动效;位置可选(角落、自动避让、头部、底部)
-• 自适应布局:推文头部太挤时,徽标自动换到下一行,不会把名字挤坏
-• 设置面板:每个功能、每种标签都能单独开关,改动即时生效
-
-【适合谁】
-想通过别人的"正在关注"列表找新账号的人;想知道哪些有影响力的人关注了自己的人;想快速判断陌生账号质量的人。
+• 自适应布局:不遮挡时间、订阅按钮;头部太挤时自动换行;设置面板里每个功能都能单独开关
 
 【隐私】
 • 不收集、不上传、不出售任何数据,没有统计和广告代码
-• 只读取 X 网页自己已经收到的数据,不主动发出任何网络请求
+• 只读取 X 网页自己已经收到的数据,不主动发出数据请求;唯一的例外:你点"生成账号名片"时会读取该账号的头像图片(来自 X 自己的图片服务器),只用于在本地画图
 • 设置和粉丝数历史只保存在你浏览器本地,可随时在设置面板里清除
 • 开源:https://github.com/yaohongan/x-follower-lens
 
 【说明】
-标签是辅助参考,粉丝数多少不代表内容质量。本扩展是个人开发的非官方工具,与 X Corp. 无关。X 改版后可能需要更新。
+流速、标签和"粉丝质量指数"都是用公开数字做的估算,仅供参考,不代表内容或账号的质量。本扩展是个人开发的非官方工具,与 X Corp. 无关。X 改版后可能需要更新。
 ```
 
 **Description (English)**
 ```
-X does not show other people's follower counts directly. To judge an unfamiliar account you have to open its profile.
-Follower Lens removes that step: it shows each account's follower count right next to the username in your timeline and in following/follower lists, plus tags that hint at what kind of account it is.
+X doesn't show other people's follower counts, and you can't tell how fast a post is taking off. Follower Lens puts that right in your timeline:
 
 FEATURES
-• Follower badge in the timeline, following lists and follower lists (exact numbers under 10K)
-• Color tiers by follower size
+• Post velocity: views per hour, in five tiers (Turtle / Bicycle / Scooter / Rocket / Lightspeed) with the number and an up/down trend; hover for views, post age and how it is calculated
+• Avatar velocity ring: a ring around the author's avatar, one look per tier (static by default; optional spinning in settings)
+• Topic tags: guesses what a creator mainly posts about from their bio and the posts you have seen (AI coding, agents, AI video, AI design, indie business, investing...), color-coded, with a custom dictionary
+• Account card: one click on a profile creates an image with the avatar, profile link and a "follower quality index"; three styles; download or copy it
+• Follower count badge in the timeline, following lists and follower lists
 • Quality tags: mutual / follows you / big account / high engagement / low activity / suspected follow-for-follow / new / veteran
-• Hover card: exact followers, following, follower/following ratio, post count, account age, engagement rate
+• Hover card: exact followers, following, ratio, post count, account age, engagement rate
 • Follower change: recorded locally for accounts you browse, shows the last 7 days
-• Dim low-quality accounts in following / follower lists
-• Adaptive layout: when the tweet header is crowded, the badge moves to its own line
-• Settings popup: every feature and tag can be toggled, applied instantly
+• Adaptive layout that avoids covering timestamps and buttons; every feature has its own switch
 
 PRIVACY
 • Collects, uploads and sells nothing. No analytics, ads or trackers.
-• Reads only data the X web page has already received; makes no network requests of its own.
+• Reads only data the X web page has already received and makes no data requests of its own. The one exception: when you click "create account card", it loads that account's avatar image (from X's own image server) just to draw the card locally.
 • Settings and follower history stay in your browser and can be cleared at any time.
 • Open source: https://github.com/yaohongan/x-follower-lens
 
-Tags are only hints; follower count does not equal content quality. This is an unofficial personal project, not affiliated with X Corp.
+Velocity, tags and the quality index are estimates from public numbers, for reference only. This is an unofficial personal project, not affiliated with X Corp.
 ```
 
 **图标**:`icons/icon128.png`(128×128,已包含在安装包里,商店要求单独再上传一次)
-**截图**:`store/screenshot-1.png` … `screenshot-4.png`(1280×800)
+**截图**:`store/screenshot-1.png` … `screenshot-5.png`(1280×800,共 5 张,最多可传 5 张)
 **小宣传图(Small promo tile)**:`store/promo-440x280.png`(建议上传)
 
 **主页 URL / 支持 URL**:https://github.com/yaohongan/x-follower-lens  /  https://github.com/yaohongan/x-follower-lens/issues
@@ -87,7 +81,7 @@ Tags are only hints; follower count does not equal content quality. This is an u
 | 项目 | 理由(粘贴) |
 |---|---|
 | storage | 保存用户的设置(各开关、徽标位置)以及用户本地的粉丝数历史记录,用于显示"近 7 天变化"。数据只保存在本地,不上传。 |
-| 内容脚本(x.com、twitter.com) | 扩展只在 x.com 和 twitter.com 运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数),并在页面上显示徽标。不读取任何其它网站。 |
+| 内容脚本(x.com、twitter.com;含"生成账号名片"时读取头像图片) | 扩展只在 x.com 和 twitter.com 运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数),并在页面上显示徽标。不读取任何其它网站。 |
 
 > 本扩展没有声明 `host_permissions`、`tabs`、`webRequest` 等权限,所以不需要为它们写理由。
 

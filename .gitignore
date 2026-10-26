@@ -1,3 +1,4 @@
 shot_*.png
 .DS_Store
 __pycache__/
+dist/x-follower-lens-0.1[0-9].*.zip
