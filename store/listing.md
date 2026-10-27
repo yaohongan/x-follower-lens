@@ -42,7 +42,7 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 X doesn't show other people's follower counts, and you can't tell how fast a post is taking off. Follower Lens puts that right in your timeline:
 
 FEATURES
-• Post velocity: views per hour, in five tiers (Turtle / Bicycle / Scooter / Rocket / Lightspeed) with the number and an up/down trend; hover for views, post age and how it is calculated
+• Post velocity: views per minute, in five tiers (Sprout / Breeze / Surge / Boil / Eruption) with the number and an up/down trend, independent of how many followers the author has; hover for total views, post age and how it compares with the author's usual posts
 • Avatar velocity ring: a ring around the author's avatar, one look per tier (static by default; optional spinning in settings)
 • Topic tags: guesses what a creator mainly posts about from their bio and the posts you have seen (AI coding, agents, AI video, AI design, indie business, investing...), color-coded, with a custom dictionary
 • Account card: one click on a profile creates an image with the avatar, profile link and a "follower quality index"; three styles; download or copy it
