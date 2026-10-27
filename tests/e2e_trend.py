@@ -6,7 +6,7 @@ EXT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXE=os.environ.get("CHROMIUM","/Users/yaohongan/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing")
 now=time.time()
 ago=lambda h: time.strftime("%a %b %d %H:%M:%S +0000 %Y", time.gmtime(now-h*3600))
-u={"__typename":"User","rest_id":"a","core":{"screen_name":"trendy","name":"trendy","created_at":"Mon Jan 01 00:00:00 +0000 2016"},"relationship_counts":{"followers":100,"following":10}}
+u={"__typename":"User","rest_id":"a","core":{"screen_name":"trendy","name":"trendy","created_at":"Mon Jan 01 00:00:00 +0000 2016"},"relationship_counts":{"followers":100000,"following":10}}
 def tw(i,views): return {"__typename":"Tweet","rest_id":str(i),"views":{"count":str(views)},"legacy":{"favorite_count":1,"retweet_count":0,"reply_count":0,"quote_count":0,"created_at":ago(2)},"core":{"user_results":{"result":u}}}
 state={"views":(1000,20000)}   # (推文1, 推文2)
 def api(r):
@@ -34,7 +34,7 @@ with sync_playwright() as p:
     check("几乎不涨的推文:↘ 降温",a1 and "↘" in a1["t"],a1 and a1["t"])
     pg.hover('article:nth-of-type(1) .fl-flow'); pg.wait_for_timeout(400)
     card=pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return t&&t.style.display!=='none'?t.innerText:null})()")
-    check("信息卡里说明了近段走势(越跑越快)",card and "近段走势" in card and "越跑越快" in card,card and card.replace(chr(10)," | "))
+    check("信息卡里说明了近段走势(越传越快)",card and "近段走势" in card and "越传越快" in card,card and card.replace(chr(10)," | "))
     check("无页面报错",not errs,errs)
     ctx.close()
 print("ALL PASS" if ok else "SOME FAIL")

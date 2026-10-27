@@ -4,7 +4,7 @@
   const DOM_KEY = "fl_dom";
   const DEFAULTS = {
     enabled: true, showRatio: false, tierColors: true, hoverCard: true,
-    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, flowReach: true, cardBtn: true, avatarFx: true, avatarSpin: false, flowMode: "abs", flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
+    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
     customDomains: "",
     tags: { domain: true, relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
   };

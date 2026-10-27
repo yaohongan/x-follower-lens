@@ -259,8 +259,3 @@ article.fl-paused .fl-fx .fl-emo, article.fl-paused .fl-fx .fl-fxbg::before, art
 
 /* ========== 破圈小标签:同一个紫色,越破越深 ==========
    它会放在各档流速标(灰/蓝/绿/橙/粉紫渐变)里面,所以每一档都自带描边,在任何底色上都读得清 */
-.fl-reach { display: inline-block; margin-left: 7px; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700; line-height: 1.35; letter-spacing: 0.2px; }
-.fl-reach.l1 { background: #f5f3ff; color: #6d28d9; box-shadow: inset 0 0 0 1px rgba(124, 58, 237, 0.55); }
-.fl-reach.l2 { background: #8b5cf6; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9); }
-.fl-reach.l3 { background: #5b21b6; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9); }
-.fl-reach.l4 { background: linear-gradient(135deg, #7c3aed, #c026d3); color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.95), 0 0 10px rgba(192, 38, 211, 0.7); }
