@@ -397,10 +397,7 @@
   const flowCardData = new WeakMap();    // article -> 悬停信息卡要用的数据(芯片和头像特效共用)
 
   // 从详细到简略的几档写法(d = 标上显示的内容:图标、档名、倍数文字)
-  // 圈内档按倍数再分:≥0.3× 写全(快出圈了);0.1–0.3× 只写倍数;<0.1× 只留图标,不吵
   function flowLevels(place, d, arrow) {
-    if (d.lite === 2) return [{ t: `${d.emoji}${arrow}` }, { t: d.emoji }];
-    if (d.lite === 1) return [{ t: `${d.emoji} ${d.text}${arrow}` }, { t: `${d.emoji}${arrow}` }, { t: d.emoji }];
     const full = `${d.emoji} ${d.name} ${d.text}${arrow}`;
     return place !== "b"
       ? [{ t: full }, { t: `${d.emoji} ${d.text}${arrow}` }, { t: `${d.emoji}${arrow}` }]
@@ -478,12 +475,12 @@
     // 标上显示破圈倍数;拿不到作者粉丝数时退回显示浏览量。6 小时内就到 3 倍以上算"还在往外传",没有趋势箭头时补一个 ↗
     const rc = author && P.reachOf(info.views, author.followers);
     const hot = !!rc && !flow.old && flow.ageH < 6 && rc.x >= 3;
-    const disp = rc ? { tier: rc.lv, emoji: rc.emoji, name: rc.name, text: rc.text, lite: rc.lv === 0 ? (rc.x < 0.1 ? 2 : rc.x < 0.3 ? 1 : 0) : 0 } : { tier: 0, emoji: "👁", name: "浏览", text: P.fmt(info.views) };
+    const disp = rc ? { tier: rc.lv, emoji: rc.emoji, name: rc.name, text: rc.text } : { tier: 0, emoji: "👁", name: "浏览", text: P.fmt(info.views) };
     flowTier.set(article, disp.tier);
     const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : hot ? " ↗" : "";
     // key = 结构(档位 + 设置);sig0 = 结构 + 数字。
     // 稳态快路径:什么都没变,直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排)
-    const key = `${disp.tier}|${disp.lite || 0}|${settingsVer}`;
+    const key = `${disp.tier}|${settingsVer}`;
     const sig0 = `${key}|${disp.text}|${arrow}`;
     if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
     flowCardData.set(article, { flow, trend, views: info.views, rc, disp, hot, followers: author ? author.followers : 0 });
