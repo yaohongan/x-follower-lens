@@ -285,13 +285,13 @@
 
   // ---- 流速:推文发布后平均每小时的浏览量 ----
   const FLOW_TIERS = [
-    { emoji: "🐢", name: "龟速" },
-    { emoji: "🚲", name: "自行车" },
-    { emoji: "🛵", name: "小电驴" },
-    { emoji: "🚀", name: "火箭" },
-    { emoji: "⚡", name: "光速" },
+    { emoji: "🌱", name: "萌芽" },
+    { emoji: "🍃", name: "起风" },
+    { emoji: "🌊", name: "涌浪" },
+    { emoji: "🔥", name: "沸腾" },
+    { emoji: "🌋", name: "喷发" },
   ];
-  const FLOW_ABS = [30, 150, 600, 3000];   // 每小时浏览量的分档线
+  const FLOW_ABS = [18, 90, 480, 2400];    // 每小时浏览量的分档线(= 每分钟 0.3 / 1.5 / 8 / 40 次)
   const FLOW_REL = [0.5, 2, 8, 30];        // 每小时、每千粉丝的浏览量
   const FLOW_MIN_AGE_H = 1 / 60;           // 发布不足 1 分钟:太早,不算
   const FLOW_FRESH_MIN_H = 0.25;           // 15 分钟内算"刚发布":浏览量还少,数字不稳,低档位(龟速)会误导,不显示
@@ -332,25 +332,32 @@
     return { recent, ratio, dir: ratio >= 1.3 ? "up" : ratio <= 0.5 ? "down" : "flat" };
   }
 
-  // 破圈倍数:累计浏览量 ÷ 作者粉丝数。大于 1 说明传到了粉丝圈外面。粉丝数拿不到(或为 0)就不算。
-  // 五档:<1× 圈内 / 1–3× 破圈 / 3–10× 出圈 / 10–50× 爆圈 / ≥50× 全网
-  const REACH_NAMES = ["圈内", "破圈", "出圈", "爆圈", "全网"];
-  const REACH_EMOJI = ["🫧", "🌀", "🌊", "🔥", "🌍"];
-  function reachOf(views, followers) {
-    if (!(followers > 0) || !(views >= 0)) return null;
-    const x = views / followers;
-    const lv = x < 1 ? 0 : x < 3 ? 1 : x < 10 ? 2 : x < 50 ? 3 : 4;
-    return {
-      x, lv, name: REACH_NAMES[lv], emoji: REACH_EMOJI[lv],
-      text: x >= 100 ? "≥100×" : x >= 10 ? Math.round(x) + "×" : x < 0.1 ? "<0.1×" : x.toFixed(1) + "×",
-    };
+  // 标上显示的速度:每分钟被看多少次(rate 是每小时的)
+  function fmtPace(rate) {
+    const m = rate / 60;
+    return m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1).replace(/\.0$/, "") + "k" : m >= 10 ? String(Math.round(m)) : m >= 1 ? m.toFixed(1).replace(/\.0$/, "") : "<1";
+  }
+
+  // TA 平时的水平:同一作者已经"发酵完"(发出 ≥24 小时、≤90 天)的其它推文,浏览量的中位数。样本不足 3 条返回 null。
+  // items: [{ id, views, createdAt }];selfId 本条不算进去
+  function usualViews(items, selfId, now) {
+    const v = [];
+    for (const t of items || []) {
+      if (t.id === selfId || !(t.views >= 1) || !t.createdAt) continue;
+      const ageH = (now - new Date(t.createdAt).getTime()) / 3600e3;
+      if (ageH >= 24 && ageH <= 2160) v.push(t.views);
+    }
+    if (v.length < 3) return null;
+    v.sort((a, b) => a - b);
+    const mid = v.length >> 1;
+    return { median: v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2, n: v.length };
   }
 
   function fmtRate(r) {
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, reachOf };
+  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

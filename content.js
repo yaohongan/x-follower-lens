@@ -18,6 +18,7 @@
   const users = new Map();      // handle -> user
   const tweetSeen = new Set();  // 去重,避免同一条推文重复累计
   const stats = new Map();      // handle -> { views, interactions }
+  const authorTweets = new Map();  // 作者 -> Map(推文 id -> { id, views, createdAt }),算"TA 平时的水平"用
   const tweetInfo = new Map();  // 推文 id -> { views, createdAt, author }(浏览量取最新一次)
   let settings = null;          // 读完存储后才渲染
   let settingsVer = 0;
@@ -158,6 +159,9 @@
         if (obs.length > 8) obs.shift();
       }
       tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author, obs });
+      let ai = authorTweets.get(t.author);
+      if (!ai) authorTweets.set(t.author, (ai = new Map()));
+      ai.set(t.id, { id: t.id, views: t.views, createdAt: t.createdAt });
       if (tweetSeen.has(t.id)) continue;
       tweetSeen.add(t.id);
       if (t.text && settings.tags.domain) {
@@ -406,29 +410,37 @@
 
   // 悬停信息卡:鼠标放到流速标、头像上的小图标时,立刻显示这条推文的流速信息(不用等浏览器原生提示的 1 秒延迟)
   function flowCardHtml(d) {
-    const { flow, trend, views, rc, disp, hot, followers } = d;
-    const MOOD = ["还在粉丝圈里", "刚刚冒出圈", "已经传到圈外", "越传越广", "传遍全网"];
+    const { flow, trend, views, usual } = d;
+    const MOOD = ["刚冒头", "有人在看", "势头不错", "正在升温", "全面爆发"];
     const rows = [];
-    if (rc) rows.push(["破圈倍数", `<b>${rc.text}</b> 的粉丝量`]);
+    rows.push(["每分钟被看", `<b>${flow.rate / 60 >= 10 ? Math.round(flow.rate / 60) : (flow.rate / 60).toFixed(1)} 次</b>`]);
     rows.push(["累计被看", Number(views).toLocaleString() + " 次"]);
-    if (rc) rows.push(["作者粉丝", Number(followers).toLocaleString()]);
     rows.push(["已发出", fmtAge(flow.ageH)]);
-    rows.push(["平均每小时被看", Math.round(flow.rate).toLocaleString() + " 次"]);
-    if (trend) rows.push(["近段走势", `约 ${Math.round(trend.recent).toLocaleString()} 次/小时 ${trend.dir === "up" ? '<span class="up">↗ 越传越快</span>' : trend.dir === "down" ? '<span class="down">↘ 慢下来了</span>' : "和全程差不多"}`]);
-    const scale = rc ? `<div class="fl-tip-r"><span>圈子刻度</span><b style="font-weight:400;font-size:11.5px">🫧&lt;1× 🌀&lt;3× 🌊&lt;10× 🔥&lt;50× 🌍≥50×</b></div>` : "";
+    if (usual) {
+      const x = views / usual.median;
+      const t = x >= 10 ? Math.round(x) : x.toFixed(1).replace(/\.0$/, "");
+      rows.push(["比 TA 平时", flow.ageH < 24 ? `<b>已是 ${t} 倍</b>(还在涨)` : `<b>${t} 倍</b>`]);
+    }
+    if (trend) rows.push(["近段走势", `约 ${(trend.recent / 60).toFixed(trend.recent >= 600 ? 0 : 1)} 次/分钟 ${trend.dir === "up" ? '<span class="up">↗ 越传越快</span>' : trend.dir === "down" ? '<span class="down">↘ 慢下来了</span>' : "和全程差不多"}`]);
+    const scale = `<div class="fl-tip-r"><span>速度刻度</span><b style="font-weight:400;font-size:11.5px">🌱&lt;0.3 🍃&lt;1.5 🌊&lt;8 🔥&lt;40 🌋≥40(次/分钟)</b></div>`;
     const notes = [
-      rc && rc.lv === 0 && rc.x >= 0.3 ? "快到 1 倍了,再涨一点就出圈" : "",
-      rc ? "破圈倍数 = 累计被看 ÷ 作者粉丝数" : "拿不到作者粉丝数,算不了破圈倍数,先显示浏览量",
-      hot ? "6 小时内就到了 3 倍以上,还在往外传" : "",
-      flow.fresh ? "刚发出来,数字还会变" : flow.old ? "发出已久,这是整段时间的累计" : "",
+      "速度 = 累计被看 ÷ 已发出的时长",
+      usual ? `“TA 平时” = 这位作者发出一天以上的 ${usual.n} 条推文,浏览量的中位数` : "",
+      flow.fresh ? "刚发出来,数字还会变" : flow.old ? "发出已久,这是整段时间的平均值" : "",
     ].filter(Boolean);
-    return `<div class="fl-tip-h">${disp.emoji} ${disp.name} · ${rc ? MOOD[rc.lv] : "暂无粉丝数"}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + scale + notes.map((n) => `<div class="fl-tip-n">${n}</div>`).join("");
+    return `<div class="fl-tip-h">${flow.emoji} ${flow.name} · ${MOOD[flow.tier] || ""}</div>` + rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + scale + notes.map((n) => `<div class="fl-tip-n">${n}</div>`).join("");
+  }
+
+  // 悬停时才算"TA 平时的水平",平时不花时间
+  function withUsual(d) {
+    const ai = authorTweets.get(d.author);
+    return { ...d, usual: ai ? P.usualViews([...ai.values()], d.id, Date.now()) : null };
   }
 
   function bindFlowHover(el, article) {
     if (el.dataset.flHover) return;
     el.dataset.flHover = "1";
-    el.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(el, flowCardHtml(d)); });
+    el.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(el, flowCardHtml(withUsual(d))); });
     el.addEventListener("mouseleave", hideTip);
   }
 
@@ -472,18 +484,15 @@
     if (!flow) { flowTier.set(article, -1); if (old) old.remove(); flowCardData.delete(article); return; }
 
     const trend = flow.old ? null : P.trendOf(info.obs, flow.rate);
-    // 标上显示破圈倍数;拿不到作者粉丝数时退回显示浏览量。6 小时内就到 3 倍以上算"还在往外传",没有趋势箭头时补一个 ↗
-    const rc = author && P.reachOf(info.views, author.followers);
-    const hot = !!rc && !flow.old && flow.ageH < 6 && rc.x >= 3;
-    const disp = rc ? { tier: rc.lv, emoji: rc.emoji, name: rc.name, text: rc.text } : { tier: 0, emoji: "👁", name: "浏览", text: P.fmt(info.views) };
-    flowTier.set(article, disp.tier);
-    const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : hot ? " ↗" : "";
+    const arrow = trend ? (trend.dir === "up" ? " ↗" : trend.dir === "down" ? " ↘" : "") : "";
+    const disp = { tier: flow.tier, emoji: flow.emoji, name: flow.name, text: `${P.fmtPace(flow.rate)}/分` };
+    flowTier.set(article, flow.tier);
     // key = 结构(档位 + 设置);sig0 = 结构 + 数字。
     // 稳态快路径:什么都没变,直接返回,不读任何布局(getComputedStyle / getBoundingClientRect 会强制同步重排)
     const key = `${disp.tier}|${settingsVer}`;
     const sig0 = `${key}|${disp.text}|${arrow}`;
     if (old && old.isConnected && old.dataset.flSig0 === sig0) return;
-    flowCardData.set(article, { flow, trend, views: info.views, rc, disp, hot, followers: author ? author.followers : 0 });
+    flowCardData.set(article, { flow, trend, views: info.views, id, author: info.author });
     // 只是数字变了(每次刷新浏览量都会变一点):原地改文字。不删不重建、不重新定位、动画也不会重新开始
     if (old && old.isConnected && old.dataset.flKey === key) {
       const levels = flowLevels(old.dataset.flPlace, disp, arrow);
@@ -584,7 +593,7 @@
 
   // ----- 头像速度环:一圈彗星环 + 一个沿环跑的小图标,转速就是流速 -----
   // 动画只用 transform(合成线程)。方形头像(企业号)不转,只留静态圈和角标。
-  const AV_EMOJI = ["🫧", "🌀", "🌊", "🔥", "🌍"];
+  const AV_EMOJI = ["🌱", "🍃", "🌊", "🔥", "🌋"];
   const mk = (cls, text) => { const s = document.createElement("span"); s.className = cls; if (text) s.textContent = text; return s; };
 
   function removeAvatarFx(container) {
@@ -600,7 +609,7 @@
     // 鼠标放到头像(含小图标)上,立刻显示这条推文的流速信息
     if (!container.dataset.flHover) {
       container.dataset.flHover = "1";
-      container.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(container, flowCardHtml(d)); });
+      container.addEventListener("mouseenter", () => { const d = flowCardData.get(article); if (d && settings.hoverCard) placeTip(container, flowCardHtml(withUsual(d))); });
       container.addEventListener("mouseleave", hideTip);
     }
   }
@@ -631,7 +640,7 @@
     el.dataset.flShape = shape === null ? "?" : round ? "r" : "s";
     container.append(el);
     // 角标只给方形头像(它不转);圆形头像已经有沿环跑的小图标
-    if (want >= 3 && !round) container.append(mk("fl-ring-badge", want === 4 ? "🌍" : "🔥"));
+    if (want >= 3 && !round) container.append(mk("fl-ring-badge", want === 4 ? "🌋" : "🔥"));
     buildAvatarFx(container, want, round, article);
   }
 

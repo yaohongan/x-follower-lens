@@ -256,6 +256,3 @@ article.fl-paused .fl-fx .fl-emo, article.fl-paused .fl-fx .fl-fxbg::before, art
 #fl-card-modal .fl-card-themes { display: flex; gap: 8px; }
 #fl-card-modal .fl-card-themes button { padding: 5px 14px; font-size: 13px; background: rgba(255, 255, 255, 0.16); }
 #fl-card-modal .fl-card-themes button.on { background: #fff; color: #111; }
-
-/* ========== 破圈小标签:同一个紫色,越破越深 ==========
-   它会放在各档流速标(灰/蓝/绿/橙/粉紫渐变)里面,所以每一档都自带描边,在任何底色上都读得清 */

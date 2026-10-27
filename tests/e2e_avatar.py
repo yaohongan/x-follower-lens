@@ -1,4 +1,4 @@
-"""头像光环测试(热闹档,完整特效结构;安静/标准档见 e2e_avatar_levels.py):默认开、按破圈档位、圆/方头像、角标、动画、关闭、减少动态效果。
+"""头像光环测试(热闹档,完整特效结构;安静/标准档见 e2e_avatar_levels.py):默认开、按流速档位、圆/方头像、角标、动画、关闭、减少动态效果。
 运行:python3 tests/e2e_avatar.py"""
 import json, tempfile, time, hashlib, os
 from playwright.sync_api import sync_playwright
@@ -8,8 +8,8 @@ eid="".join(chr(ord("a")+int(c,16)) for c in hashlib.sha256(EXT.encode()).hexdig
 now=time.time(); ago=lambda h: time.strftime("%a %b %d %H:%M:%S +0000 %Y", time.gmtime(now-h*3600))
 def user(h): return {"__typename":"User","rest_id":h,"core":{"screen_name":h,"name":h,"created_at":"Mon Jan 01 00:00:00 +0000 2016"},"relationship_counts":{"followers":100,"following":10}}
 def tw(i,h,v,age=2): return {"__typename":"Tweet","rest_id":str(i),"views":{"count":str(v)},"legacy":{"favorite_count":1,"retweet_count":0,"reply_count":0,"quote_count":0,"created_at":ago(age)},"core":{"user_results":{"result":user(h)}}}
-# 档位(作者 100 粉丝,2 小时前发):50 浏览→0.5×圈内 200→2×破圈 500→5×出圈 2000→20×爆圈 10000→100×全网;最后两条是方形/待判头像的爆圈
-cases=[("inner",50,True),("breaker",200,True),("outer",500,True),("burst",2000,True),("web",10000,True),("squareco",2000,False),("pending",2000,None)]
+# 档位(2 小时前发):20 浏览→10/小时萌芽 100→50 起风 500→250 涌浪 2000→1000 沸腾 10000→5000 喷发;最后两条是方形/待判头像的沸腾
+cases=[("sprout",20,True),("breeze",100,True),("surge",500,True),("boil",2000,True),("erupt",10000,True),("squareco",2000,False),("pending",2000,None)]
 data=json.dumps({"data":[tw(i+1,h,v) for i,(h,v,rd) in enumerate(cases)]})
 def art(i,h,rd): return f'''<article data-testid="tweet" style="position:relative;width:548px;padding:20px"><div style="display:flex;gap:12px"><div data-testid="UserAvatar-Container-{h}" style="position:relative;width:40px;height:40px;flex:none"><div style="position:absolute;inset:0;overflow:hidden;{'border-radius:9999px;' if rd is True else 'border-radius:6px;' if rd is False else ''}background:#94a3b8"><img style="width:40px;height:40px" alt=""></div></div>
 <div style="display:flex;flex-direction:column;width:440px"><div style="display:flex;justify-content:space-between;width:440px"><div style="display:flex"><div style="display:flex;flex-direction:column"><div data-testid="User-Name" style="display:flex"><div><a role="link" href="/{h}">{h}</a></div><div><a role="link" href="/{h}">@{h}</a><a href="/{h}/status/{i}"><time>2h</time></a></div></div></div></div><div style="display:flex;width:46px"><button>m</button></div></div>
@@ -32,9 +32,9 @@ with sync_playwright() as p:
     s=pg.evaluate(JS); print(json.dumps(s,ensure_ascii=False))
     check("每一档(含慢档)都有速度环",all(x is not None for x in s[:6]))
     check("默认是静态的:环和小图标都不动,每一档(含慢档)都有环",all(x is not None for x in s[:6]) and all(s[k]["ringAnim"]=="none" and s[k]["iAnim"]=="none" for k in range(5)),[(s[k]["ringAnim"],s[k]["iAnim"]) for k in range(5)])
-    check("小图标:🫧 🌀 🌊 🔥 🌍",[s[k]["emoji"] for k in range(5)]==["🫧","🌀","🌊","🔥","🌍"])
+    check("小图标:🌱 🍃 🌊 🔥 🌋",[s[k]["emoji"] for k in range(5)]==["🌱","🍃","🌊","🔥","🌋"])
     pos=pg.evaluate("[...document.querySelectorAll('article')].slice(0,5).map(a=>{const c=a.querySelector('[data-testid^=UserAvatar-Container-]'),i=c.querySelector('.fl-orbit-i').getBoundingClientRect(),r=c.getBoundingClientRect();return [Math.round(i.left+i.width/2-(r.left+r.width/2)),Math.round(i.top+i.height/2-(r.top+r.height/2)),Math.round(i.width)]})")
-    check("静态位置:🫧 🌀 🌊 在右下角,🔥 🌍 在右上角(彗星头上),🔥 🌍 的图标更大",all(pos[k][0]>0 and pos[k][1]>0 for k in (0,1,2)) and all(pos[k][0]>0 and pos[k][1]<0 for k in (3,4)) and pos[3][2]>pos[0][2],pos)
+    check("静态位置:🌱 🍃 🌊 在右下角,🔥 🌋 在右上角(彗星头上),🔥 🌋 的图标更大",all(pos[k][0]>0 and pos[k][1]>0 for k in (0,1,2)) and all(pos[k][0]>0 and pos[k][1]<0 for k in (3,4)) and pos[3][2]>pos[0][2],pos)
     check("极简:每个头像只有 1 个环 + 1 个小图标(共 2 个元素),圆形头像没有角标",all(s[k]["n"]==1 and s[k]["nfx"]==1 and s[k]["parts"]==2 and s[k]["badge"] is None for k in range(5)),[s[k]["parts"] for k in range(5)])
     st=pg.evaluate("[...document.querySelectorAll('article')].slice(0,5).map(a=>{const r=a.querySelector('.fl-ring'),b=getComputedStyle(r);return b.backgroundImage.slice(0,40)+'|'+b.paddingTop})")
     check("五档造型不同(环的粗细/颜色各不相同)",len(set(st))==5,st)
@@ -46,7 +46,7 @@ with sync_playwright() as p:
     # 悬停信息卡
     pg.hover('article:nth-child(4) [data-testid^=UserAvatar-Container-]'); pg.wait_for_timeout(300)
     card=pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return t&&t.style.display!=='none'?t.innerText.replace(/\\n/g,' | '):null})()")
-    check("鼠标放到头像上:显示信息卡",card and all(k in card for k in ("平均每小时被看","累计被看","已发出","破圈倍数")),card)
+    check("鼠标放到头像上:显示信息卡",card and all(k in card for k in ("每分钟被看","累计被看","已发出","速度刻度")),card)
     pg.mouse.move(2,2); pg.wait_for_timeout(250)
     check("移开后信息卡消失",pg.evaluate("document.getElementById('fl-tip').style.display==='none'"))
     check("方形头像(企业号):不转、没有绕圈小图标,有角标 🔥",s[5] and "square" in s[5]["cls"] and s[5]["ringAnim"]=="none" and s[5]["emoji"] is None and s[5]["badge"]=="🔥",s[5])
@@ -62,7 +62,7 @@ with sync_playwright() as p:
     check("弹窗:\"让头像转起来\"默认关闭",pop.evaluate("!document.querySelector('input[data-key=avatarSpin]').checked"))
     pop.click('input[data-key=avatarSpin]'); pop.wait_for_timeout(300); pg.bring_to_front(); pg.wait_for_timeout(1500)
     sp=pg.evaluate(JS)
-    check("转起来:转速跟着档位走 12s / 6s / 4s / 2.4s / 1.4s,小图标同速且反向",[sp[k]["ringDur"] for k in range(5)]==["12s","6s","4s","2.4s","1.4s"] and [sp[k]["orbitDur"] for k in range(5)]==["12s","6s","4s","2.4s","1.4s"] and all(sp[k]["ringAnim"]=="fl-spin" and sp[k]["iDir"]=="reverse" for k in range(5)),[(sp[k]["ringDur"],sp[k]["orbitDur"]) for k in range(5)])
+    check("转起来:转速跟着流速走 12s / 6s / 4s / 2.4s / 1.4s,小图标同速且反向",[sp[k]["ringDur"] for k in range(5)]==["12s","6s","4s","2.4s","1.4s"] and [sp[k]["orbitDur"] for k in range(5)]==["12s","6s","4s","2.4s","1.4s"] and all(sp[k]["ringAnim"]=="fl-spin" and sp[k]["iDir"]=="reverse" for k in range(5)),[(sp[k]["ringDur"],sp[k]["orbitDur"]) for k in range(5)])
     check("转起来时方形头像仍然不转",sp[5]["ringAnim"]=="none")
     pg.emulate_media(reduced_motion="reduce"); pg.wait_for_timeout(300)
     rm=pg.evaluate("[...document.querySelectorAll('.fl-ring,.fl-orbit,.fl-orbit-i')].every(e=>getComputedStyle(e).animationName==='none')")

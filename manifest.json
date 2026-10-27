@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "粉丝透镜 Follower Lens",
-  "version": "0.16.0",
-  "description": "在 X 信息流里显示推文破圈倍数、头像破圈环和内容方向标签,还能一键生成账号名片;同时显示粉丝数和质量标签。",
+  "version": "0.17.0",
+  "description": "在 X 信息流里显示推文流速、头像流速环和内容方向标签,还能一键生成账号名片;同时显示粉丝数和质量标签。",
   "homepage_url": "https://github.com/yaohongan/x-follower-lens",
   "minimum_chrome_version": "111",
   "icons": {
