@@ -11,6 +11,9 @@
   let settings = null;
 
   document.getElementById("ver").textContent = "v" + chrome.runtime.getManifest().version;
+  document.getElementById("openAudience").addEventListener("click", () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL("audience.html") });
+  });
 
   const merge = (s) => Object.assign({}, DEFAULTS, s, { tags: Object.assign({}, DEFAULTS.tags, s && s.tags) });
   const save = () => chrome.storage.local.set({ [KEY]: settings });
