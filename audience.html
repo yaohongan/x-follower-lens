@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>粉丝构成 · 粉丝透镜</title>
+  <link rel="stylesheet" href="audience.css">
+</head>
+<body>
+  <header class="page-header">
+    <a class="brand" href="https://github.com/yaohongan/x-follower-lens" target="_blank" rel="noreferrer">
+      <img src="icons/icon48.png" width="40" height="40" alt="">
+      <span>粉丝透镜<small>Follower Lens</small></span>
+    </a>
+    <span class="local-label">本地分析 · 浏览样本</span>
+  </header>
+  <main>
+    <div class="heading">
+      <div><p class="eyebrow">认识关注你的人</p><h1>粉丝构成</h1></div>
+      <button id="exportCsv" type="button" disabled>导出筛选结果 CSV</button>
+    </div>
+
+    <section class="capture card" aria-labelledby="captureTitle">
+      <div>
+        <h2 id="captureTitle">记录自己的粉丝样本</h2>
+        <p class="muted">填写自己的 X 用户名，开始后会打开关注者页。正常向下浏览，扩展只记录该列表加载的账号。</p>
+      </div>
+      <form id="captureForm" class="capture-controls">
+        <label class="handle-field" for="ownerHandle"><span class="sr-only">X 用户名</span><span aria-hidden="true">@</span><input id="ownerHandle" name="handle" autocomplete="off" spellcheck="false" maxlength="16" placeholder="你的用户名" required pattern="@?[A-Za-z0-9_]{1,15}"></label>
+        <button id="startCapture" type="submit" class="primary">开始记录</button>
+        <button id="pauseCapture" type="button" disabled>暂停</button>
+        <button id="clearData" type="button" class="quiet" disabled>清除样本</button>
+      </form>
+      <div class="capture-status" role="status" aria-live="polite"><span id="statusDot" class="status-dot"></span><span id="captureStatus">正在读取本地数据…</span></div>
+      <p id="captureMeta" class="muted small"></p>
+    </section>
+
+    <p id="errorMessage" class="error" role="alert" hidden></p>
+    <aside class="sample-note">
+      <strong>这是浏览样本，不是完整粉丝画像。</strong>
+      <span>仅统计在该账号关注者页浏览加载的样本，非随机样本，不代表全部粉丝。简介主题是文字线索，自填地区不代表真实所在地。</span>
+    </aside>
+
+    <section id="emptyState" class="empty-state card" hidden>
+      <div class="empty-mark" aria-hidden="true">◎</div>
+      <h2>从你的关注者页开始</h2>
+      <p>开始记录后，在 X 的「关注者」页刷新并向下浏览。已有样本会自动出现在这里。</p>
+      <p class="muted">记录只保存在此浏览器；暂停会停止新增，清除样本会删除本报告的数据。</p>
+    </section>
+
+    <div id="report" hidden>
+      <section class="metrics" aria-label="样本概览">
+        <article class="metric card"><span>已记录账号</span><strong id="totalCount">0</strong><small>按用户 ID 去重</small></article>
+        <article class="metric card"><span>粉丝数已知率</span><strong id="knownRate">—</strong><small id="knownCount">—</small></article>
+        <article class="metric card"><span>粉丝数中位数</span><strong id="medianFollowers">—</strong><small>仅按粉丝数已知账号计算</small></article>
+        <article class="metric card"><span>万粉以上账号</span><strong id="largeCount">0</strong><small>粉丝数 ≥ 10,000</small></article>
+      </section>
+
+      <section class="charts" aria-label="样本分布">
+        <article class="card chart-card"><h2>粉丝量分布</h2><p class="muted small">占粉丝数已知账号的比例；点击筛选名单。</p><div id="bandsChart" class="bar-list"></div><button id="unknownFollowers" type="button" class="text-button"></button></article>
+        <article class="card chart-card"><h2>简介主题</h2><p class="muted small">占全部样本的比例；允许多标签重叠。复用当前内容方向词典。</p><div id="topicsChart" class="bar-list"></div><button id="unknownTopics" type="button" class="text-button"></button></article>
+        <article class="card chart-card"><h2>自填地区</h2><p class="muted small">按公开原文分组，占全部样本的比例。</p><div id="locationsChart" class="bar-list"></div><p id="unknownLocations" class="muted small"></p></article>
+      </section>
+
+      <section class="card people-card" aria-labelledby="peopleTitle">
+        <div class="list-heading"><div><h2 id="peopleTitle">粉丝名单</h2><p id="filterSummary" class="muted small" aria-live="polite"></p></div><button id="resetFilters" type="button" class="quiet">重置筛选</button></div>
+        <div class="filters">
+          <label class="search-field"><span class="sr-only">搜索昵称、用户名或简介</span><input id="search" type="search" placeholder="搜索昵称、用户名、简介" autocomplete="off"></label>
+          <label><span>粉丝量</span><select id="bandFilter"><option value="all">全部量级</option><option value="lt100">0–99</option><option value="lt1k">100–999</option><option value="lt10k">1,000–9,999</option><option value="lt100k">10,000–99,999</option><option value="gte100k">100,000 以上</option><option value="unknown">未知</option></select></label>
+          <label><span>简介主题</span><select id="topicFilter"><option value="all">全部主题</option><option value="unknown">未识别主题</option></select></label>
+          <label><span>排序</span><select id="sortOrder"><option value="desc">粉丝数从多到少</option><option value="asc">粉丝数从少到多</option></select></label>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th scope="col">账号与简介</th><th scope="col" class="number">粉丝数</th><th scope="col" class="number">关注数</th><th scope="col">简介主题</th><th scope="col">自填地区</th></tr></thead><tbody id="peopleRows"></tbody></table></div>
+        <p id="noMatches" class="no-matches" hidden>没有符合条件的账号，试试调整筛选。</p>
+        <div class="pagination"><span id="pageInfo" class="muted small"></span><div><button id="previousPage" type="button">上一页</button><button id="nextPage" type="button">下一页</button></div></div>
+      </section>
+    </div>
+  </main>
+  <footer class="page-footer">数据仅在本地处理。标签来自公开简介的关键词匹配，不判断真实职业、身份或账号价值。</footer>
+  <script src="parse.js"></script>
+  <script src="audience-core.js"></script>
+  <script src="audience-dashboard.js"></script>
+</body>
+</html>

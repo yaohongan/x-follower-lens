@@ -11,27 +11,40 @@
   const relevant = (text) => typeof text === "string" && (text.includes('"relationship_counts"') || text.includes('"followers_count"'));
   const wanted = (url) => isGraphql(url) && WANT.test(url);
 
-  const emit = (text) => {
+  const emit = (text, requestUrl, pagePath, requestAt) => {
     if (relevant(text)) window.postMessage({ source: SOURCE, body: text }, "*");
+    // Keep the request-time URL/path: a delayed response after SPA navigation
+    // must not be attributed to the account currently visible on screen.
+    if (/\/graphql\/[^/]+\/Followers(?:\?|$)/.test(requestUrl || "")) {
+      window.postMessage({ source: "follower-lens-audience", body: text, requestUrl, pagePath, requestAt }, "*");
+    }
   };
 
   const origFetch = window.fetch;
   window.fetch = function (...args) {
     const p = origFetch.apply(this, args);               // X 拿到的就是它自己的 Promise,不多等任何东西
     try {
-      const url = typeof args[0] === "string" ? args[0] : args[0] && args[0].url;
-      if (wanted(url)) p.then((res) => { try { res.clone().text().then(emit).catch(() => {}); } catch (_) {} }, () => {});
+      const input = args[0];
+      const url = typeof input === "string" ? new URL(input, location.href).href : input instanceof URL ? input.href : input && input.url;
+      const pagePath = location.pathname;
+      const requestAt = Date.now();
+      if (wanted(url)) p.then((res) => { try { res.clone().text().then((text) => emit(text, url, pagePath, requestAt)).catch(() => {}); } catch (_) {} }, () => {});
     } catch (_) {}
     return p;
   };
 
   const origOpen = XMLHttpRequest.prototype.open;
+  const xhrContext = new WeakMap();
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    if (wanted(url)) {
+    if (!xhrContext.has(this)) {
       this.addEventListener("load", () => {
-        try { emit(this.responseText); } catch (_) {}
+        const context = xhrContext.get(this);
+        if (context) { try { emit(this.responseText, context.url, context.pagePath, context.requestAt); } catch (_) {} }
       });
     }
+    let resolved;
+    try { resolved = new URL(String(url), location.href).href; } catch (_) {}
+    xhrContext.set(this, wanted(resolved) ? { url: resolved, pagePath: location.pathname, requestAt: Date.now() } : null);
     return origOpen.call(this, method, url, ...rest);
   };
 })();

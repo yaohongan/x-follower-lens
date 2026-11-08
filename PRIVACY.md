@@ -1,6 +1,6 @@
 # 隐私政策 / Privacy Policy
 
-**粉丝透镜 Follower Lens** · 最后更新:2026-10-26
+**粉丝透镜 Follower Lens** · 最后更新:2026-11-08
 
 ## 中文
 
@@ -13,6 +13,7 @@
 以下内容保存在你浏览器的本地存储(`chrome.storage.local`)里,不会离开你的设备:
 - **你的设置**(各开关、徽标位置等)。
 - **粉丝数历史记录**:你浏览过的账号的用户名与粉丝数、记录时间,用于显示"近 7 天变化"。最多保存 3000 个账号、每个账号 40 个数据点。你可以随时在扩展的设置面板里点"清除记录"删除,或关闭"本地记录粉丝数变化"。
+- **粉丝构成样本（主动开启后）**:你填写的目标用户名、目标用户 ID、记录状态和时间，以及在其普通关注者页加载的粉丝 ID、用户名、显示名、简介、自填地区、粉丝/关注数、注册与采集时间。按用户 ID 去重，最多 5,000 人，并受本地存储大小上限约束；不自动淘汰旧样本。仅在你开启报告记录后保存，可在报告页暂停、导出或清除。关闭报告页不等于暂停：继续浏览目标关注者页仍可记录。清除报告与原有「清除记录」操作相互独立。
 
 ### 它不会做什么
 - 不向任何服务器发送数据,不含任何统计、广告或跟踪代码。
@@ -36,6 +37,8 @@
 **What it reads.** It runs only on `x.com` and `twitter.com`. It reads data that the X web page has *already received* (usernames, follower/following counts, account creation date, tweet engagement counts, and your follow relationship with each account) to render badges and hover cards on the page.
 
 **What it stores.** The following is saved in your browser's local storage (`chrome.storage.local`) and never leaves your device: (1) your settings; (2) a follower-count history for accounts you have browsed (username, follower count, timestamp; capped at 3,000 accounts and 40 data points each) used to show 7-day changes. You can delete it anytime with "Clear history" in the extension popup, or turn history tracking off.
+
+**Opt-in audience samples.** When you explicitly start recording in the audience report, the extension also stores the selected account handle/ID, recording state and timestamps, and follower IDs, handles, names, bios, self-reported locations, follower/following counts, account creation dates and observation times from that account's ordinary Followers page. Samples are deduplicated by user ID, capped at 5,000 people and bounded by local storage size. Closing the report does not pause recording while you continue browsing that Followers page. Pause, export or delete the sample from the report; this is separate from clearing the existing follower-count history. CSV exports are created locally and are downloaded only on your request. The report does not fetch additional X data and does not establish ownership of the handle you enter.
 
 **What it does not do.** It sends no data to any server and contains no analytics, ads, or trackers. It does not make its own network requests; it only reads data the page is already sending and receiving. It does not read passwords, direct messages, cookies, or credentials. It uses no remotely hosted code.
 
