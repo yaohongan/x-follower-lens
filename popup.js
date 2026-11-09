@@ -4,7 +4,7 @@
   const DOM_KEY = "fl_dom";
   const DEFAULTS = {
     enabled: true, showRatio: false, tierColors: true, hoverCard: true,
-    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, replyMark: true, replyDim: false, fansBar: true, followsBar: true, reviewBtn: true, flowSize: "m", fansLines: "3000,10000,30000,50000,100000", cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
+    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, replyMark: true, replyDim: false, fansBar: true, followsBar: true, reviewBtn: true, flowSize: "m", notifyMark: true, notifyLine: 10000, fansLines: "3000,10000,30000,50000,100000", cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
     customDomains: "",
     tags: { domain: true, relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
   };
@@ -23,6 +23,8 @@
     if (document.activeElement !== ta) ta.value = settings.customDomains || "";
     const fl = document.getElementById("fansLines");
     if (document.activeElement !== fl) fl.value = settings.fansLines || "";
+    const nl = document.getElementById("notifyLine");
+    if (document.activeElement !== nl) nl.value = String(settings.notifyLine || 10000);
     document.getElementById("panel").classList.toggle("off", !settings.enabled);
   }
 
@@ -53,6 +55,15 @@
   document.getElementById("fansLines").addEventListener("input", (e) => {
     clearTimeout(taTimer);
     taTimer = setTimeout(() => { if (settings) { settings.fansLines = e.target.value; save(); } }, 400);
+  });
+
+  document.getElementById("notifyLine").addEventListener("input", (e) => {
+    clearTimeout(taTimer);
+    taTimer = setTimeout(() => {
+      const m = String(e.target.value).trim().match(/^([\d.]+)\s*(万|w)?$/i);
+      const n = m ? Number(m[1]) * (m[2] ? 10000 : 1) : NaN;
+      if (settings && n > 0) { settings.notifyLine = Math.round(n); save(); }
+    }, 400);
   });
 
   document.getElementById("customDomains").addEventListener("input", (e) => {

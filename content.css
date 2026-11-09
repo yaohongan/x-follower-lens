@@ -337,3 +337,12 @@ article.fl-dimreply:hover { opacity: 1; }
 #fl-fans-modal .fl-rev-list a .m { text-align: right; color: #9aa4ae; }
 html.fl-size-l .fl-flow { font-size: 15px; line-height: 21px; padding: 4px 12px; }
 html.fl-size-xl .fl-flow { font-size: 17px; line-height: 24px; padding: 5px 14px; }
+
+/* ========== 通知页:新粉丝的粉丝数和标签,大号高亮 ========== */
+.fl-notif-row { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 4px 16px 10px 60px; font: 500 13px/1.4 system-ui, -apple-system, "PingFang SC", sans-serif; }
+.fl-notif-item { display: inline-flex; align-items: center; gap: 6px; }
+.fl-notif-item > b { font-weight: 700; }
+.fl-notif-item.big > b { color: #d97706; }
+.fl-notif-more { opacity: 0.6; }
+.fl-notif-row .fl-tag.rel { display: none; }   /* 通知里本来就是"关注了你",不用再标一次 */
+article.fl-notif-vip { box-shadow: inset 3px 0 0 #f5b301; background: rgba(245, 179, 1, 0.07); }

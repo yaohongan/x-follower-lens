@@ -42,14 +42,17 @@ with sync_playwright() as p:
     open(os.path.join(tempfile.gettempdir(),"shot_card.png"),"wb").write(base64.b64decode(info["url"].split(",")[1]))
     check("头像:用接口数据里的头像地址(并换成 400x400 大图),不是首字母",any(u.endswith("pic_400x400.png") for u in reqs),reqs)
     PXJS="(([x,y])=>{const c=document.querySelector('#fl-card-modal canvas'),g=c.getContext('2d');const d=g.getImageData(2*x,2*y,1,1).data;return [d[0],d[1],d[2]]})"
-    BG={"wrapped":[198,255,58],"gold":[16,15,14]}
-    pxw=pg.evaluate(PXJS,[666,128])
-    check("年度风格:头像位置画的是头像本身的颜色(不是首字母灰底 #475569,也不是背景色)",pxw!=[71,85,105] and sum(abs(a-b) for a,b in zip(pxw,BG["wrapped"]))>40,pxw)
+    # 头像圆心:便当(144,140)、海报(674,196)、黑金(156,270)。mock 的头像是单色小图;采样点必须既不是首字母灰底 #475569,也不是各自的背景色
+    pxb=pg.evaluate(PXJS,[144,140])
+    check("便当风格(默认):头像位置画的是头像本身的颜色(不是首字母灰底,也不是白色格子)",pxb!=[71,85,105] and sum(abs(a-255) for a in pxb)>60,pxb)
+    pg.click(".fl-card-themes button[data-t=poster]"); pg.wait_for_timeout(300)
+    pxp=pg.evaluate(PXJS,[674,196])
+    check("海报风格:头像位置是头像本身的颜色(不是纸色底 #f3efe6)",pxp!=[71,85,105] and sum(abs(a-b) for a,b in zip(pxp,[243,239,230]))>60,pxp)
     pg.click(".fl-card-themes button[data-t=gold]"); pg.wait_for_timeout(300)
     pxg=pg.evaluate(PXJS,[156,270])
     check("黑金风格:头像位置同样是头像本身的颜色",pxg!=[71,85,105] and sum(pxg)>60,pxg)
-    check("风格按钮只有「年度」「黑金」两个,切换后记住",pg.evaluate("[...document.querySelectorAll('.fl-card-themes button')].map(b=>b.textContent).join()")=="年度,黑金" and pg.evaluate("localStorage.getItem('fl_card_theme')")=="gold")
-    pg.click(".fl-card-themes button[data-t=wrapped]"); pg.wait_for_timeout(200)
+    check("风格按钮是「便当」「海报」「黑金」三个,切换后记住",pg.evaluate("[...document.querySelectorAll('.fl-card-themes button')].map(b=>b.textContent).join()")=="便当,海报,黑金" and pg.evaluate("localStorage.getItem('fl_card_theme')")=="gold")
+    pg.click(".fl-card-themes button[data-t=bento]"); pg.wait_for_timeout(200)
 
     with pg.expect_download() as dl: pg.click('#fl-card-modal [data-a=dl]')
     check("下载图片:文件名带账号名",dl.value.suggested_filename=="粉丝透镜-coder.png",dl.value.suggested_filename)

@@ -1,10 +1,11 @@
 // 账号名片:用 Canvas 画一张"粉丝质量体检卡"图片。纯绘图,不读页面、不联网(头像由调用方传入)。
-// 两套风格:wrapped 年度(默认,整块高饱和色,颜色随分数变)/ gold 黑金(哑光黑底 + 金色线条与衬线数字)。
+// 三套风格:bento 便当(默认,浅灰底 + 圆角格子)/ poster 海报(纸色底 + 超大数字)/ gold 黑金(哑光黑底 + 金色线条与衬线数字)。
 (() => {
   const W = 800, H = 1180, S = 2;   // 逻辑尺寸;实际像素 ×2,发到 X 上更清晰
   const FONT = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif';
-  const THEMES = [["wrapped", "年度"], ["gold", "黑金"]];
+  const THEMES = [["bento", "便当"], ["poster", "海报"], ["gold", "黑金"]];
 
+  const accent = (s) => (s >= 80 ? ["#10b981", "#06b6d4"] : s >= 60 ? ["#6366f1", "#ec4899"] : s >= 40 ? ["#f59e0b", "#ef4444"] : ["#ef4444", "#be185d"]);
   const rr = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
   const ell = (c, text, maxW) => { if (c.measureText(text).width <= maxW) return text; let t = text; while (t.length > 1 && c.measureText(t + "…").width > maxW) t = t.slice(0, -1); return t + "…"; };
   // ================= 新风格:海报 / 便当 / 年度 / 黑金 =================
@@ -31,49 +32,111 @@
     }
   };
 
-  // ---- 年度:一整块高饱和色、超粗字、贴纸感,最适合发出去让人想转 ----
-  function drawWrapped(c, d) {
-    const sc = d.score.score;
-    const pal = sc >= 80 ? ["#c6ff3a", "#101010", "#ff3d8b"] : sc >= 60 ? ["#ff6fb5", "#1c0b3a", "#ffe45c"] : sc >= 40 ? ["#ffb81f", "#1b1030", "#ff3d6e"] : ["#ff5148", "#1a0d0d", "#ffe45c"];
-    const [bg, ink, hi] = pal;
-    c.fillStyle = bg; c.fillRect(0, 0, W, H);
-    // 背景几何
-    c.fillStyle = ink + "14"; c.beginPath(); c.arc(W + 40, 250, 330, 0, 7); c.fill();
-    c.fillStyle = ink + "0f"; c.beginPath(); c.arc(40, H - 20, 230, 0, 7); c.fill();
-    c.textBaseline = "alphabetic"; c.textAlign = "left";
-    // 顶部文案
-    c.fillStyle = ink; c.font = F(900, 46, FONT); c.fillText("你的粉丝质量", 52, 108);
-    c.font = F(900, 46, FONT); c.fillText("是这样的 ↓", 52, 164);
-    // 头像贴纸
-    const ax = W - 52 - 82, ay = 128;
-    c.save(); c.translate(ax, ay); c.rotate(0.12); c.translate(-ax, -ay);
-    circleImg(c, d, ax, ay, 78); c.strokeStyle = ink; c.lineWidth = 7; c.beginPath(); c.arc(ax, ay, 80, 0, 7); c.stroke(); c.restore();
+  // ---- 海报:纸色底、超大数字、细线分栏,像杂志的一页 ----
+  function drawPoster(c, d) {
+    const sc = d.score.score, [a1, a2] = accent(sc), ink = "#16130f", sub = "rgba(22,19,15,0.5)", line = "rgba(22,19,15,0.85)";
+    c.fillStyle = "#f3efe6"; c.fillRect(0, 0, W, H);
+    c.fillStyle = a1 + "22"; c.beginPath(); c.arc(W - 40, 700, 300, 0, 7); c.fill();           // 淡淡的色块,压在数字后面
+    c.textBaseline = "alphabetic";
+    // 刊头
+    spaced(c, 5, () => { c.fillStyle = ink; c.font = F(800, 17, NUM); c.textAlign = "left"; c.fillText("ACCOUNT CHECK", 52, 68); c.textAlign = "right"; c.fillText(d.date.replace(/-/g, " . "), W - 52, 68); });
+    c.fillStyle = line; c.fillRect(52, 86, W - 104, 3);
+    // 头像 + 名字
+    circleImg(c, d, W - 52 - 74, 196, 74);
+    c.strokeStyle = ink; c.lineWidth = 4; c.beginPath(); c.arc(W - 52 - 74, 196, 80, 0, 7); c.stroke();
+    c.textAlign = "left"; c.fillStyle = ink; c.font = F(900, 60, FONT); c.fillText(ell(c, d.name || d.handle, W - 52 - 200 - 60), 52, 190);
+    c.fillStyle = sub; c.font = F(600, 26, NUM); c.fillText("@" + d.handle, 52, 232);
+    c.fillStyle = ink; c.font = F(700, 22, NUM); c.fillText(ell(c, "x.com/" + d.handle, 440), 52, 268);
     // 超大指数
-    c.save(); c.translate(0, 0);
-    c.fillStyle = ink; c.font = F(900, 400, NUM); c.fillText(String(sc), 28, 520);
-    c.restore();
-    // 贴纸:档位
-    c.save(); c.translate(W - 190, 400); c.rotate(-0.14);
-    c.font = F(900, 54, FONT); const lw = c.measureText(d.score.label).width + 64;
-    rr(c, -lw / 2, -44, lw, 88, 44); c.fillStyle = hi; c.fill(); c.strokeStyle = ink; c.lineWidth = 6; c.stroke();
-    c.fillStyle = ink; c.textAlign = "center"; c.fillText(d.score.label, 0, 18); c.restore();
-    c.textAlign = "left"; c.fillStyle = ink; c.font = F(800, 26, FONT); c.fillText("/ 100 · 粉丝质量指数(参考)", 52, 574);
-    // 名字
-    c.font = F(900, 62, FONT); c.fillText(ell(c, d.name || d.handle, W - 104), 52, 676);
-    c.font = F(700, 28, NUM); c.fillText("@" + d.handle + "   x.com/" + d.handle, 52, 720);
-    // 数据条:粗线分隔,左标签右大数字
-    const rows = [["粉丝", d.followers], ["关注", d.following], ["粉丝 / 关注比", d.ratio], ["账号年龄", ageS(d)]];
-    let y = 760;
-    rows.forEach(([k, v]) => {
-      c.fillStyle = ink; c.fillRect(52, y, W - 104, 5);
-      c.textAlign = "left"; c.font = F(800, 25, FONT); c.fillText(k, 52, y + 50);
-      c.textAlign = "right"; c.font = F(900, 40, NUM); c.fillText(ell(c, String(v), 420), W - 52, y + 52);
-      y += 62;
+    c.fillStyle = ink; c.font = F(900, 360, NUM); c.textAlign = "left";
+    const nw = c.measureText(String(sc)).width;
+    c.fillText(String(sc), 38, 566);
+    c.fillStyle = a1; c.fillRect(52, 592, Math.min(nw, 420), 14);
+    c.fillStyle = ink; c.font = F(800, 34, NUM); c.fillText("/ 100", 52 + nw + 6 > 560 ? 560 : 52 + nw + 6, 566);
+    // 档位标签(实心色块)
+    c.font = F(900, 40, FONT); const lw = c.measureText(d.score.label).width + 56;
+    const lx = W - 52 - lw, ly = 400;
+    rr(c, lx, ly, lw, 68, 12); c.fillStyle = a1; c.fill(); c.fillStyle = "#fff"; c.textAlign = "center"; c.fillText(d.score.label, lx + lw / 2, ly + 49);
+    c.textAlign = "right"; c.fillStyle = sub; c.font = F(600, 19, FONT); c.fillText("粉丝质量指数(参考)", W - 52, ly + 100);
+    // 四项数据:两列,细线分隔
+    c.fillStyle = line; c.fillRect(52, 636, W - 104, 3);
+    const cells = [["粉丝", d.followers], ["关注", d.following], ["粉丝 / 关注比", d.ratio], ["账号年龄", ageS(d)]];
+    const cw = (W - 104) / 2;
+    cells.forEach(([k, v], i) => {
+      const x = 52 + (i % 2) * cw, y = 642 + Math.floor(i / 2) * 108;
+      c.textAlign = "left"; c.fillStyle = sub; c.font = F(600, 18, FONT); c.fillText(k, x + (i % 2 ? 26 : 0), y + 36);
+      c.fillStyle = ink; c.font = F(800, 46, NUM); c.fillText(ell(c, String(v), cw - 40), x + (i % 2 ? 26 : 0), y + 90);
+      if (i % 2 === 0) c.fillRect(x + cw - 1, y + 14, 1.5, 84);
     });
-    c.fillStyle = ink; c.fillRect(52, y, W - 104, 5);
-    // 标签:黑底彩字
-    chips(c, d.tags, 52, y + 30, W - 52, 46, F(800, 22, FONT), ink, hi === "#ffe45c" || hi === "#ff3d8b" ? "#fff" : "#fff", null, 10);
-    c.textAlign = "left"; c.fillStyle = ink; c.font = F(700, 15, FONT); c.fillText("由「粉丝透镜」生成 · github.com/yaohongan/x-follower-lens · 指数为公开数据估算 · " + d.date, 52, H - 34);
+    c.fillStyle = line; c.fillRect(52, 642 + 108, W - 104, 1.5);
+    c.fillRect(52, 642 + 216, W - 104, 3);
+    // 得分
+    let y = 916;
+    for (const p of d.score.parts) {
+      c.textAlign = "left"; c.fillStyle = ink; c.font = F(700, 20, FONT); c.fillText(p.name, 52, y);
+      c.fillStyle = sub; c.font = F(500, 17, FONT); c.fillText(p.note, 52 + c.measureText(p.name).width + 14 + 6, y);
+      c.textAlign = "right"; c.fillStyle = ink; c.font = F(800, 22, NUM); c.fillText(`${p.got}`, W - 52 - 38, y); c.fillStyle = sub; c.font = F(600, 17, NUM); c.fillText(`/${p.max}`, W - 52, y);
+      c.fillStyle = "rgba(22,19,15,0.12)"; c.fillRect(52, y + 12, W - 104, 5); c.fillStyle = a1; c.fillRect(52, y + 12, (W - 104) * p.got / p.max, 5);
+      y += 42;
+    }
+    chips(c, d.tags, 52, 1082, W - 52, 38, F(700, 19, FONT), null, ink, ink, 10);
+    c.textAlign = "left"; c.fillStyle = sub; c.font = F(500, 14, FONT); c.fillText("由「粉丝透镜」生成 · github.com/yaohongan/x-follower-lens · 指数为公开数据估算", 52, H - 22);
+  }
+
+  // ---- 便当:浅灰底 + 大小不一的圆角格子,一格一个数据,只有指数那格有颜色 ----
+  function drawBento(c, d) {
+    const sc = d.score.score, [a1, a2] = accent(sc), ink = "#12141a", sub = "rgba(18,20,26,0.5)";
+    c.fillStyle = "#e8ebf1"; c.fillRect(0, 0, W, H);
+    const P = 36, G = 16, R = 34;
+    const tile = (x, y, w, h, fill, r) => { c.save(); c.shadowColor = "rgba(30,40,70,0.10)"; c.shadowBlur = 24; c.shadowOffsetY = 8; rr(c, x, y, w, h, r || R); c.fillStyle = fill || "#fff"; c.fill(); c.restore(); };
+    c.textBaseline = "alphabetic"; c.textAlign = "left";
+    // 身份格
+    tile(P, P, W - 2 * P, 208);
+    circleImg(c, d, P + 44 + 64, P + 104, 64);
+    const g = c.createLinearGradient(P + 44, P + 40, P + 172, P + 168); g.addColorStop(0, a1); g.addColorStop(1, a2);
+    c.strokeStyle = g; c.lineWidth = 6; c.beginPath(); c.arc(P + 44 + 64, P + 104, 71, 0, 7); c.stroke();
+    c.fillStyle = ink; c.font = F(800, 42, FONT); c.fillText(ell(c, d.name || d.handle, 430), P + 208, P + 92);
+    c.fillStyle = sub; c.font = F(600, 24, NUM); c.fillText("@" + d.handle, P + 208, P + 130);
+    c.fillStyle = a1; c.font = F(700, 22, NUM); c.fillText(ell(c, "x.com/" + d.handle, 430), P + 208, P + 166);
+    // 指数格(大,彩色)
+    const y2 = P + 208 + G, sw = 350, sh = 352;
+    tile(P, y2, sw, sh, "#fff");
+    const gg = c.createLinearGradient(P, y2, P + sw, y2 + sh); gg.addColorStop(0, a1); gg.addColorStop(1, a2);
+    rr(c, P, y2, sw, sh, R); c.fillStyle = gg; c.fill();
+    c.save(); rr(c, P, y2, sw, sh, R); c.clip(); c.fillStyle = "rgba(255,255,255,0.18)"; c.beginPath(); c.arc(P + sw - 20, y2 + 40, 130, 0, 7); c.fill(); c.restore();
+    c.fillStyle = "rgba(255,255,255,0.85)"; c.font = F(700, 20, FONT); c.fillText("粉丝质量指数", P + 32, y2 + 52);
+    c.fillStyle = "#fff"; c.font = F(900, 170, NUM); c.fillText(String(sc), P + 24, y2 + 232);
+    c.font = F(800, 30, FONT); const lw = c.measureText(d.score.label).width + 36;
+    rr(c, P + 32, y2 + 262, lw, 52, 26); c.fillStyle = "rgba(255,255,255,0.95)"; c.fill(); c.fillStyle = a1; c.fillText(d.score.label, P + 50, y2 + 299);
+    // 右侧两格:粉丝 / 关注
+    const rx = P + sw + G, rw = W - P - rx, rh = (sh - G) / 2;
+    [["粉丝", d.followers], ["关注", d.following]].forEach(([k, v], i) => {
+      const y = y2 + i * (rh + G); tile(rx, y, rw, rh);
+      c.fillStyle = sub; c.font = F(600, 20, FONT); c.fillText(k, rx + 30, y + 46);
+      c.fillStyle = ink; c.font = F(800, 58, NUM); c.fillText(ell(c, String(v), rw - 60), rx + 30, y + 118);
+    });
+    // 三小格
+    const y3 = y2 + sh + G, tw3 = (W - 2 * P - 2 * G) / 3, th3 = 128;
+    [["粉丝/关注比", d.ratio], ["账号年龄", ageS(d)], ["推文", d.score.parts[3].note]].forEach(([k, v], i) => {
+      const x = P + i * (tw3 + G); tile(x, y3, tw3, th3, "#fff");
+      c.fillStyle = sub; c.font = F(600, 18, FONT); c.fillText(k, x + 26, y3 + 40);
+      c.fillStyle = ink; c.font = F(800, 34, NUM); c.fillText(ell(c, String(v), tw3 - 44), x + 26, y3 + 92);
+    });
+    // 得分格
+    const y4 = y3 + th3 + G, h4 = 236; tile(P, y4, W - 2 * P, h4);
+    let y = y4 + 56;
+    for (const p of d.score.parts) {
+      c.textAlign = "left"; c.fillStyle = ink; c.font = F(700, 20, FONT); c.fillText(p.name, P + 30, y);
+      const bx = P + 190, bw = 300; rr(c, bx, y - 14, bw, 14, 7); c.fillStyle = "#e8ebf1"; c.fill();
+      const bgd = c.createLinearGradient(bx, 0, bx + bw, 0); bgd.addColorStop(0, a1); bgd.addColorStop(1, a2);
+      rr(c, bx, y - 14, Math.max(14, bw * p.got / p.max), 14, 7); c.fillStyle = bgd; c.fill();
+      c.fillStyle = sub; c.font = F(600, 17, FONT); c.fillText(`${p.got}/${p.max} · ${p.note}`, bx + bw + 16, y);
+      y += 44;
+    }
+    // 标签格
+    const y5 = y4 + h4 + G, h5 = H - y5 - 62; tile(P, y5, W - 2 * P, h5);
+    chips(c, d.tags, P + 30, y5 + (h5 - 40) / 2, W - P - 20, 40, F(700, 20, FONT), "#eef1f6", ink, null, 10);
+    c.textAlign = "center"; c.fillStyle = sub; c.font = F(500, 15, FONT); c.fillText("由「粉丝透镜」生成 · github.com/yaohongan/x-follower-lens · 指数为公开数据估算 · " + d.date, W / 2, H - 24);
   }
 
   // ---- 黑金:哑光黑底、金色细线和衬线数字,像一张会员/证书卡 ----
@@ -130,7 +193,7 @@
     chips(c, d.tags, 72, 1048, W - 72, 38, F(600, 19, FONT), null, "rgba(247,227,163,0.95)", "rgba(201,162,74,0.7)", 10);
     c.textAlign = "center"; c.fillStyle = "rgba(247,227,163,0.45)"; c.font = F(500, 13, FONT); c.fillText("由「粉丝透镜」生成 · github.com/yaohongan/x-follower-lens · 指数为公开数据估算", W / 2, H - 56);
   }
-  const NEW_DRAW = { wrapped: drawWrapped, gold: drawGold };
+  const NEW_DRAW = { bento: drawBento, poster: drawPoster, gold: drawGold };
 
 
   // data: { name, handle(主页地址 x.com/handle 由它拼出), avatar(Image|null), followers, following, ratio, ageText, score:{score,label,parts[]}, tags:[string], date }
@@ -138,7 +201,7 @@
     canvas.width = W * S; canvas.height = H * S;
     const c = canvas.getContext("2d");
     c.scale(S, S);
-    (NEW_DRAW[themeName] || NEW_DRAW.wrapped)(c, data);
+    (NEW_DRAW[themeName] || NEW_DRAW.bento)(c, data);
   }
 
   window.FollowerLensCard = { draw, W, H, THEMES };

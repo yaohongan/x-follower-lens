@@ -180,6 +180,7 @@
     const now = Date.now();
     if (op && /^(BlueVerified)?Followers$/.test(op)) captureFans(us, now);
     else if (op === "Following") captureFollows(us, now);
+    else if (op === "NotificationsTimeline") captureNotifs(json);
     for (const u of us) {
       users.set(u.handle, u);
       recordHistory(u, now);
@@ -232,6 +233,70 @@
     }
     rec.ts = now; fansDirty = true;
     scheduleSave();
+  }
+
+  // ---------- 新粉丝提醒:通知页里"谁关注了你" ----------
+  // 通知接口里每条通知带 notification_icon:person_icon = 有人关注了你(heart_icon 是点赞,retweet_icon 是转发)。
+  // 这里只记"关注了你的人"的用户名;粉丝数、标签用已有的用户数据(同一个接口响应里本来就带着)
+  const newFollowers = new Set();
+  const PERSON_SIG = "M17.863 13.44";   // 通知里"关注"图标(小人)的路径开头
+  function captureNotifs(json) {
+    const stack = [json];
+    while (stack.length) {
+      const o = stack.pop();
+      if (!o || typeof o !== "object") continue;
+      if (o.notification_icon === "person_icon" && o.template && Array.isArray(o.template.from_users)) {
+        for (const fu of o.template.from_users) {
+          const r = fu && fu.user_results && fu.user_results.result;
+          const h = r && ((r.core && r.core.screen_name) || (r.legacy && r.legacy.screen_name));
+          if (h) newFollowers.add(String(h).toLowerCase());
+        }
+        continue;
+      }
+      for (const k in o) { const v = o[k]; if (v && typeof v === "object") stack.push(v); }
+    }
+  }
+  function markNotifs() {
+    const on = settings.notifyMark && settings.enabled && /^\/notifications/.test(location.pathname);
+    const line = Number(settings.notifyLine) > 0 ? Number(settings.notifyLine) : 10000;
+    const nodes = [...document.querySelectorAll('article[data-testid="notification"]')];
+    // 同一个人先关注了你、又点了赞,那条点赞通知里也有他:用通知左边的图标区分(关注 = 小人图标,不依赖界面语言)。
+    // X 哪天换了图标,页面上一个"小人图标"都找不到时,退回只按用户名匹配
+    const sigOf = (a) => { const p = a.querySelector("svg path"); const d = p && p.getAttribute("d"); return d ? d.slice(0, PERSON_SIG.length) : ""; };
+    const anyPerson = nodes.some((a) => sigOf(a) === PERSON_SIG);
+    for (const a of nodes) {
+      let matched = [];
+      if (on && newFollowers.size && (sigOf(a) === PERSON_SIG || !anyPerson)) {
+        const seen = new Set();
+        for (const l of a.querySelectorAll('a[href^="/"]')) {
+          const m = l.getAttribute("href").match(/^\/([A-Za-z0-9_]{1,15})$/);
+          const h = m && m[1].toLowerCase();
+          if (h && !seen.has(h) && newFollowers.has(h) && users.has(h)) { seen.add(h); matched.push(h); }
+        }
+        matched.sort((x, y) => users.get(y).followers - users.get(x).followers);
+      }
+      const sig = matched.length ? matched.map((h) => h + ":" + users.get(h).followers).join(",") + "|" + line + "|" + settingsVer : "";
+      const old = a.querySelector(":scope .fl-notif-row");
+      if (!matched.length) { if (old) old.remove(); a.classList.remove("fl-notif-vip"); delete a.dataset.flN; continue; }
+      if (old && a.dataset.flN === sig) continue;
+      if (old) old.remove();
+      const row = document.createElement("div"); row.className = "fl-notif-row";
+      let vip = false;
+      for (const h of matched.slice(0, 3)) {
+        const u = users.get(h), big = u.followers >= line;
+        vip = vip || big;
+        const item = document.createElement("span"); item.className = "fl-notif-item" + (big ? " big" : "");
+        const name = document.createElement("b"); name.textContent = (big ? "⭐ " : "") + "@" + h;
+        item.append(name);
+        const built = buildBadge(h, false);
+        if (built) item.append(built.wrap);
+        row.append(item);
+      }
+      if (matched.length > 3) { const more = document.createElement("span"); more.className = "fl-notif-more"; more.textContent = `…还有 ${matched.length - 3} 位`; row.append(more); }
+      a.append(row);
+      a.classList.toggle("fl-notif-vip", vip);
+      a.dataset.flN = sig;
+    }
   }
 
   // ---------- 关注列表分析:边看"正在关注"列表边记 ----------
@@ -1094,9 +1159,9 @@
     const avatar = await loadAvatar(handle);
     if (!users.has(handle) || !m.isConnected) return;
     const cd = cardData(handle, avatar);
-    let theme = "wrapped";
-    try { theme = localStorage.getItem("fl_card_theme") || "wrapped"; } catch (_) {}
-    if (!window.FollowerLensCard.THEMES.some(([k]) => k === theme)) theme = "wrapped";   // 以前存的旧风格名(极光/暗夜/纸质)已经没有了
+    let theme = "bento";
+    try { theme = localStorage.getItem("fl_card_theme") || "bento"; } catch (_) {}
+    if (!window.FollowerLensCard.THEMES.some(([k]) => k === theme)) theme = "bento";   // 以前存的旧风格名(极光/暗夜/纸质/年度)已经没有了
     const paint = () => {
       window.FollowerLensCard.draw(cv, cd, theme);
       m.querySelectorAll(".fl-card-themes button").forEach((b) => b.classList.toggle("on", b.dataset.t === theme));
@@ -1127,7 +1192,8 @@
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
     document.querySelectorAll(".fl-vip, .fl-dimreply").forEach((c) => c.classList.remove("fl-vip", "fl-dimreply"));
-    document.querySelectorAll(".fl-fans-bar, .fl-fol-bar, .fl-rev-btn").forEach((n) => n.remove()); closeFans();
+    document.querySelectorAll(".fl-fans-bar, .fl-fol-bar, .fl-rev-btn, .fl-notif-row").forEach((n) => n.remove()); closeFans();
+    document.querySelectorAll(".fl-notif-vip").forEach((c) => c.classList.remove("fl-notif-vip"));
   }
 
   // 只给"屏幕附近"的推文做装饰。X 的时间线会把远处的推文也留在页面里,用户根本看不到,给它们加特效纯属浪费。
@@ -1173,6 +1239,7 @@
       decorateCell(cell, nameBlock && nameBlock.parentElement);
     });
     markReplies(arts);
+    markNotifs();
     ensureCardBtn();
     ensureReviewBtn();
     ensureFansBar();
@@ -1190,7 +1257,7 @@
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
   const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"], [data-testid="UserName"]';
   function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || n.id === "fl-card-modal" || (typeof n.className === "string" && n.className.includes("fl-"))); }
-  const OURS_SEL = ".fl-badge, .fl-fans-bar, .fl-fol-bar, .fl-rev-btn, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
+  const OURS_SEL = ".fl-badge, .fl-notif-row, .fl-fans-bar, .fl-fol-bar, .fl-rev-btn, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
   new MutationObserver((muts) => {
     const t0 = performance.now();
     try { onMutations(muts); } finally { perf.mutMs += performance.now() - t0; perf.mutCalls++; }
