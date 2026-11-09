@@ -53,6 +53,15 @@
     taTimer = setTimeout(() => { if (settings) { settings.customDomains = e.target.value; save(); } }, 400);
   });
 
+  document.getElementById("copyDiag").addEventListener("click", (e) => {
+    const btn = e.currentTarget;
+    chrome.storage.local.get("fl_diag", (r) => {
+      const txt = (r.fl_diag || []).length ? JSON.stringify(r.fl_diag) : "";
+      if (!txt) { btn.textContent = "还没有记录"; setTimeout(() => (btn.textContent = "复制诊断"), 1500); return; }
+      navigator.clipboard.writeText(txt).then(() => { btn.textContent = "已复制"; setTimeout(() => (btn.textContent = "复制诊断"), 1500); });
+    });
+  });
+
   document.getElementById("clearHist").addEventListener("click", () => {
     chrome.storage.local.remove([HIST_KEY, DOM_KEY], countHist);
   });

@@ -30,5 +30,21 @@ with sync_playwright() as p:
         good=r is not None and r["place"]=="h" and r["gapToIcons"]<=24
         print(("PASS " if good else "FAIL ")+"流速标靠右、贴着图标组:"+name,r); ok&=good
         pg.close()
+    # ---- 上下居中 + 自己纠错(评论区"时有时无"的错位):按钮比流速标高(Boost 40px)、按钮晚到(12 秒)、头部被换掉 ----
+    MEAS="(()=>{const c=document.querySelector('.fl-flow');if(!c)return null;const mn=c.nextElementSibling;const btn=[...mn.querySelectorAll('button')].find(x=>getComputedStyle(x).visibility!=='hidden');if(!btn)return {nobtn:true};const b=c.getBoundingClientRect(),r=btn.getBoundingClientRect();return {gap:Math.round(r.left-b.right),dy:Math.round((r.top+r.height/2)-(b.top+b.height/2)),place:c.dataset.flPlace}})()"
+    def page_for(body,wait,js=None,wait2=0):
+        pg=ctx.new_page(); pg.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=body))
+        pg.goto("https://x.com/home"); pg.wait_for_timeout(wait)
+        if js: pg.evaluate(js); pg.wait_for_timeout(wait2)
+        r=pg.evaluate(MEAS); pg.close(); return r
+    TALL=mk("align-items:center;flex:1;justify-content:flex-end;").replace('align-items:center','align-items:center').replace('justify-content:space-between;width:100%','justify-content:space-between;align-items:flex-start;width:100%').replace('<button style="width:30px">g</button>','<button style="width:62px;height:40px">Boost</button><button style="width:30px;height:30px">g</button>')
+    r=page_for(TALL,2500)
+    good=r is not None and r.get("place")=="h" and abs(r["dy"])<=1 and r["gap"]<=24; print(("PASS " if good else "FAIL ")+"流速标和更高的按钮(Boost 40px)上下居中、贴着它",r); ok&=good
+    LATE12=mk("flex:1;justify-content:flex-end;").replace('<button style="width:30px">g</button><button style="width:30px">m</button>','')
+    r=page_for(LATE12,10500,"(()=>{const m=document.querySelector('[data-testid=User-Name]').parentElement.parentElement.nextElementSibling;m.innerHTML='<button style=width:62px;height:40px>Boost</button><button style=width:30px>m</button>'})()",1500)
+    good=r is not None and r.get("place")=="h" and r["gap"]<=24 and abs(r["dy"])<=1; print(("PASS " if good else "FAIL ")+"按钮在放好很久之后才出现(超过原来的复查时间点):靠监听头部变化自己对齐",r); ok&=good
+    REC=mk("flex:1;justify-content:flex-end;").replace('<button style="width:30px">g</button>','<button style="width:62px;height:40px">Boost</button><button style="width:30px">g</button>')
+    r=page_for(REC,10500,"(()=>{const m=document.querySelector('[data-testid=User-Name]').parentElement.parentElement.nextElementSibling;m.innerHTML='<button style=width:120px;height:32px>Boost more</button><button style=width:30px>m</button>'})()",1500)
+    good=r is not None and r["gap"]<=24 and abs(r["dy"])<=1; print(("PASS " if good else "FAIL ")+"头部按钮被换成别的宽度(节点回收重画):重新对齐",r); ok&=good
     ctx.close()
 print("ALL PASS" if ok else "SOME FAIL")

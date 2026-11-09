@@ -444,10 +444,10 @@
     el.addEventListener("mouseleave", hideTip);
   }
 
-  // 贴靠:流速标放在头部时,让它的右边缘紧贴头部右边"看得见的"按钮(Grok、菜单)。
-  // 不依赖 X 的容器结构:直接量按钮的实际位置,再用相对偏移(position:relative; left)挪过去。相对偏移不影响布局。
+  // 贴靠:流速标放在头部时,让它的右边缘紧贴头部右边"看得见的"按钮(Grok、菜单、Boost),上下和这个按钮居中对齐。
+  // 不依赖 X 的容器结构:直接量按钮的实际位置,再用相对偏移(position:relative; left / top)挪过去。相对偏移不影响布局。
   // 注意要跳过 visibility:hidden 的按钮:被我们隐藏的别家流速标仍然占着位置,不能拿它当对齐目标。
-  // X 的头部按钮是陆续渲染出来的,所以放好之后还会再量几次。
+  // X 的头部按钮是陆续渲染出来的、评论区的节点还会被回收复用,所以不只放好后量几次:watchAlign 会盯着头部,变了就重新对齐。
   function snapRight(chip) {
     if (!chip || !chip.isConnected || chip.dataset.flPlace === "b") return;
     if (settings.flowPos === "header" && !settings.hideForeign) return;   // 这个模式要让到别家流速标的左边,由 avoidOverlays 负责
@@ -455,7 +455,7 @@
     const un = art && art.querySelector('[data-testid="User-Name"]');
     if (!un) return;
     const ur = un.getBoundingClientRect(), cr = chip.getBoundingClientRect();
-    let L = Infinity;
+    let L = Infinity, ref = null;
     for (const b of art.querySelectorAll('button, [role="button"]')) {
       if (chip.contains(b) || un.contains(b)) continue;
       const r = b.getBoundingClientRect();
@@ -463,15 +463,56 @@
       if (r.left >= L) continue;
       const cs = getComputedStyle(b);
       if (cs.visibility === "hidden" || cs.opacity === "0" || cs.display === "none") continue;
-      L = r.left;
+      L = r.left; ref = r;
     }
     if (L === Infinity) return;
-    let delta = Math.round(L - 8 - cr.right);
-    if (Math.abs(delta) <= 3 || delta > 900 || delta < -900) return;
-    if (cr.left + delta < ur.right + 4) delta = Math.round(ur.right + 4 - cr.left);   // 绝不压到名字
-    if (Math.abs(delta) <= 3) return;
-    chip.style.position = "relative";
-    chip.style.left = `${(parseFloat(chip.style.left) || 0) + delta}px`;
+    let dx = Math.round(L - 8 - cr.right);
+    if (Math.abs(dx) <= 3 || dx > 900 || dx < -900) dx = 0;
+    if (dx && cr.left + dx < ur.right + 4) dx = Math.round(ur.right + 4 - cr.left);   // 绝不压到名字
+    if (Math.abs(dx) <= 3) dx = 0;
+    let dy = Math.round(ref.top + ref.height / 2 - (cr.top + cr.height / 2));        // 和最近的可见按钮上下居中
+    if (Math.abs(dy) <= 1 || Math.abs(dy) > 16) dy = 0;
+    if (dx || dy) {
+      chip.style.position = "relative";
+      if (dx) chip.style.left = `${(parseFloat(chip.style.left) || 0) + dx}px`;
+      if (dy) chip.style.top = `${(parseFloat(chip.style.top) || 0) + dy}px`;
+    }
+    if (settings.debug) selfCheck(chip, art, un, ref);
+  }
+
+  // 自检(只在开了"调试条"时):对齐之后量一遍,左右应该是 8px、上下应该居中;还对不上就把头部结构摘要记下来,设置里可以复制发给我
+  function selfCheck(chip, art, un, ref) {
+    const c = chip.getBoundingClientRect(), gap = Math.round(ref.left - c.right), dyc = Math.round(ref.top + ref.height / 2 - (c.top + c.height / 2));
+    if (Math.abs(gap - 8) <= 4 && Math.abs(dyc) <= 2) return;
+    const row = headerRow(un);
+    const sk = (e, d) => ({ t: e.tagName.toLowerCase() + (e.getAttribute("data-testid") ? "#" + e.getAttribute("data-testid") : "") + (e.getAttribute("role") ? "[" + e.getAttribute("role") + "]" : ""), r: [Math.round(e.getBoundingClientRect().left), Math.round(e.getBoundingClientRect().top), Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)], c: d > 0 ? [...e.children].slice(0, 8).map((k) => sk(k, d - 1)) : undefined });
+    const rec = { at: new Date().toISOString(), path: location.pathname, gap, dy: dyc, chip: [Math.round(c.left), Math.round(c.top), Math.round(c.width), Math.round(c.height)], row: row ? sk(row, 3) : null };
+    console.warn("[粉丝透镜] 位置对不上", rec);
+    if (storage) storage.get("fl_diag").then((o) => storage.set({ fl_diag: [...(o.fl_diag || []), rec].slice(-10) }));
+  }
+
+  // 盯着头部:它的尺寸变了(按钮晚到、节点被回收重画、窗口变窄)就重新对齐。
+  // 对齐只改 left/top(相对偏移),不改尺寸也不改子节点,所以不会触发自己
+  const alignWatched = new WeakSet();
+  const alignQueue = new Set();
+  let alignRaf = 0;
+  function queueAlign(art) {
+    alignQueue.add(art);
+    if (alignRaf) return;
+    alignRaf = requestAnimationFrame(() => {
+      alignRaf = 0;
+      for (const a of alignQueue) { const c = a.isConnected && a.querySelector(".fl-flow"); if (c) snapRight(c); }
+      alignQueue.clear();
+    });
+  }
+  function watchAlign(art, row) {
+    if (!row || alignWatched.has(row)) return;
+    alignWatched.add(row);
+    const ro = new ResizeObserver(() => queueAlign(art));
+    ro.observe(row);
+    if (row.lastElementChild) ro.observe(row.lastElementChild);
+    new MutationObserver((ms) => { if (ms.some((m) => !(m.target.closest && m.target.closest(".fl-flow")) && !(m.target.classList && m.target.classList.contains("fl-flow")))) queueAlign(art); })
+      .observe(row, { childList: true, subtree: true });
   }
 
   function decorateFlow(article) {
@@ -543,6 +584,7 @@
         for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i].t, disp.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
       } else if (mode === "header" && !settings.hideForeign) avoidOverlays(chip, article, row, menu);
       snapRight(chip);
+      if (place === "h") watchAlign(article, row);
     } else {
       cell.append(chip);
       for (let i = 0; i < levels.length; i++) { level = i; setChip(chip, levels[i].t, disp.emoji); if (cell.scrollWidth <= cell.clientWidth + 1) break; }
@@ -651,17 +693,26 @@
     const m = location.pathname.match(/^\/([A-Za-z0-9_]{1,15})(?:\/(?:with_replies|highlights|media|articles))?\/?$/);
     return m && !RESERVED.has(m[1].toLowerCase()) ? m[1].toLowerCase() : null;
   }
+  // 名片入口:一个小图标,放在个人主页头部右侧那排圆形按钮(更多、私信、编辑资料)的最左边,不占新的一行。
+  // 找不到那排按钮(X 改版)时,退回放在用户名下面,仍然只是一个小图标
+  const CARD_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M5.8 16.2c.7-1.5 1.9-2.2 3.2-2.2s2.5.7 3.2 2.2"/><path d="M14.5 10h3.5M14.5 14h2.5"/></svg>';
   function ensureCardBtn() {
     const old = document.querySelector(".fl-card-btn");
     const handle = settings.cardBtn ? profileHandle() : null;
     const un = handle && document.querySelector('[data-testid="UserName"]');
     if (!un || !users.has(handle)) { if (old) old.remove(); return; }
-    if (old && old.dataset.h === handle && old.isConnected && old.previousElementSibling === un) return;
+    const act = document.querySelector('[data-testid="userActions"], [data-testid="editProfileButton"]');
+    const row = act && act.parentElement && act.parentElement.getBoundingClientRect().height ? act.parentElement : null;
+    if (old && old.dataset.h === handle && old.isConnected && (row ? old.parentElement === row && row.firstElementChild === old : old.previousElementSibling === un)) return;
     if (old) old.remove();
     const b = document.createElement("button");
-    b.type = "button"; b.className = "fl-card-btn"; b.dataset.h = handle; b.textContent = "🔍 生成账号名片";
-    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openCard(handle); });
-    un.insertAdjacentElement("afterend", b);
+    b.type = "button"; b.className = "fl-card-btn" + (row ? " in-row" : ""); b.dataset.h = handle; b.setAttribute("aria-label", "生成账号名片");
+    b.innerHTML = CARD_ICON;
+    b.style.color = getComputedStyle(document.body).color;
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hideTip(); openCard(handle); });
+    b.addEventListener("mouseenter", () => placeTip(b, '<div class="fl-tip-h">🔍 生成账号名片</div><div class="fl-tip-n">一键生成这个账号的体检卡,可下载或复制</div>'));
+    b.addEventListener("mouseleave", hideTip);
+    if (row) row.insertBefore(b, row.firstElementChild); else un.insertAdjacentElement("afterend", b);
   }
 
   function cardData(handle, avatar) {

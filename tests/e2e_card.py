@@ -10,7 +10,10 @@ PNG=base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42m
 U={"__typename":"User","rest_id":"9","core":{"screen_name":"coder","name":"代码老张","created_at":"Mon Jan 01 00:00:00 +0000 2016"},"avatar":{"image_url":"https://pbs.twimg.com/profile_images/1/pic_normal.png"},"relationship_counts":{"followers":23800,"following":310},"tweet_counts":{"tweets":5200},"profile_bio":{"description":"独立开发者,用 Cursor 和 Claude Code 写代码,AI编程每日分享"}}
 def tw(i): return {"__typename":"Tweet","rest_id":str(i),"views":{"count":"20000"},"legacy":{"favorite_count":900,"retweet_count":100,"reply_count":50,"quote_count":10,"created_at":ago(5),"full_text":"cursor 写代码"},"core":{"user_results":{"result":U}}}
 data=json.dumps({"data":{"user":U,"tl":[tw(i) for i in range(1,6)]}})
-HTML='''<!doctype html><html><body style="margin:20px;font:15px sans-serif"><div id=r></div><script>addEventListener("load",function(){document.getElementById("r").innerHTML='<div><div data-testid="UserAvatar-Container-coder" style="width:80px;height:80px"><img src="/av.png" style="width:80px;height:80px"></div><div data-testid="UserName"><b>代码老张</b> @coder</div><div data-testid="UserDescription">bio</div></div>';var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/UserTweets");x.send()});</script></body></html>'''
+ACT='''<div style="display:flex;gap:8px;height:48px;margin-left:auto;width:max-content"><button data-testid="userActions" aria-label="更多" style="width:36px;height:36px">m</button><button data-testid="sendDMFromProfile" style="width:36px;height:36px">d</button></div>'''
+HTML0='''<!doctype html><html><body style="margin:20px;font:15px sans-serif"><div id=r></div><script>addEventListener("load",function(){document.getElementById("r").innerHTML='<div><div data-testid="UserAvatar-Container-coder" style="width:80px;height:80px"><img src="/av.png" style="width:80px;height:80px"></div>ACTROW<div data-testid="UserName"><b>代码老张</b> @coder</div><div data-testid="UserDescription">bio</div></div>';var x=new XMLHttpRequest();x.open("GET","/i/api/graphql/a/UserTweets");x.send()});</script></body></html>'''
+HTML=HTML0.replace('ACTROW',ACT)
+HTML_NOROW=HTML0.replace('ACTROW','')
 ok=True
 def check(n,c,e=""):
     global ok; ok&=bool(c); print(("PASS " if c else "FAIL ")+n,e)
@@ -23,10 +26,15 @@ with sync_playwright() as p:
         reqs.append(r.request.url); r.fulfill(status=200,content_type="image/png",body=PNG,headers={"access-control-allow-origin":"*"})
     ctx.route("https://pbs.twimg.com/**",pic)
     ctx.route("https://x.com/coder",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML))
+    ctx.route("https://x.com/coder/with_replies",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML_NOROW))
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML.replace('data-testid="UserName"','data-testid="Other"')))
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("https://x.com/coder"); pg.wait_for_timeout(2500)
-    check("个人主页:出现「生成账号名片」按钮,且紧跟在用户名块后面",pg.evaluate("(()=>{const b=document.querySelector('.fl-card-btn');return !!b&&b.previousElementSibling.dataset.testid==='UserName'})()"))
+    check("个人主页:名片入口是一个小图标(36px 圆形,没有文字),放在那排按钮(更多、私信)的最左边",pg.evaluate("(()=>{const b=document.querySelector('.fl-card-btn'),r=b&&b.getBoundingClientRect();return !!b&&b.textContent.trim()===''&&!!b.querySelector('svg')&&Math.round(r.width)===36&&Math.round(r.height)===36&&b.parentElement.firstElementChild===b&&b.nextElementSibling.dataset.testid==='userActions'})()"))
+    check("图标不占新的一行:和旁边的按钮同一行(上下居中一致)",pg.evaluate("(()=>{const b=document.querySelector('.fl-card-btn').getBoundingClientRect(),m=document.querySelector('[data-testid=userActions]').getBoundingClientRect();return Math.abs(b.top+b.height/2-(m.top+m.height/2))<=1})()"))
+    pg.hover(".fl-card-btn"); pg.wait_for_timeout(250)
+    check("鼠标放上去:出现「生成账号名片」提示",pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return !!t&&t.style.display!=='none'&&t.innerText.includes('生成账号名片')})()"))
+    pg.mouse.move(2,2)
     pg.click(".fl-card-btn"); pg.wait_for_timeout(1200)
     check("点开:出现弹层和画布",pg.evaluate("!!document.querySelector('#fl-card-modal canvas')"))
     info=pg.evaluate("(()=>{const c=document.querySelector('#fl-card-modal canvas');const g=c.getContext('2d');const d=g.getImageData(0,0,c.width,c.height).data;let nz=0;for(let i=0;i<d.length;i+=4*500)if(d[i]+d[i+1]+d[i+2]>60)nz++;return {w:c.width,h:c.height,nz,url:c.toDataURL('image/png')}})()")
@@ -40,6 +48,9 @@ with sync_playwright() as p:
     pg.keyboard.press("Escape"); pg.wait_for_timeout(300)
     check("按 Esc 关闭弹层",pg.evaluate("!document.querySelector('#fl-card-modal')"))
     pg.goto("https://x.com/home"); pg.wait_for_timeout(2000)
+    pg2=ctx.new_page(); pg2.goto("https://x.com/coder/with_replies"); pg2.wait_for_timeout(2500)
+    check("找不到那排按钮(X 改版)时:退回放在用户名块后面,仍然只是个小图标",pg2.evaluate("(()=>{const b=document.querySelector('.fl-card-btn');return !!b&&b.textContent.trim()===''&&b.previousElementSibling.dataset.testid==='UserName'&&b.getBoundingClientRect().width<=32})()"))
+    pg2.close()
     check("不是个人主页:没有按钮",pg.evaluate("!document.querySelector('.fl-card-btn')"))
     pop=ctx.new_page(); pop.goto(f"chrome-extension://{eid}/popup.html"); pop.wait_for_timeout(600)
     check("弹窗:生成名片按钮默认勾选",pop.evaluate("document.querySelector('input[data-key=cardBtn]').checked"))
