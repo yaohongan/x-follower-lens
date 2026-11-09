@@ -22,6 +22,8 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 • 内容方向标签:按账号简介和刷到的推文,标出这个博主主要做什么(AI编程、智能体、AI视频、AI设计、出海变现、投资……),每个方向一种颜色,词典可自定义
 • 账号状态:鼠标放在徽标上,看这个账号有没有受保护、风险提示、认证类型等标记(只读页面自带数据)
 • 评论区标记:大 V 的回复高亮,低质量回复可选淡化
+• 关注列表分析:在"正在关注"列表页按"没关注你""疑似互粉号""新号"等筛选、排序、导出 CSV(只统计你滚动加载过的,数据只存本地)
+• 推文复盘:个人主页上看这个账号你刷到过的推文——哪几条最好、什么时段发得最好(只用页面里已有的数据)
 • 粉丝构成:在"关注者"列表页统计粉丝里有多少人 3000 粉以上、1 万以上等,可导出 CSV(只统计你滚动加载过的,数据只存本地)
 • 账号名片:在个人主页一键生成带头像、主页地址和"粉丝质量指数"的图片,三种风格,可下载或复制后直接发到 X
 • 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数
@@ -50,6 +52,8 @@ FEATURES
 • Topic tags: guesses what a creator mainly posts about from their bio and the posts you have seen (AI coding, agents, AI video, AI design, indie business, investing...), color-coded, with a custom dictionary
 • Account status: hover a badge to see flags the page already carries (protected, risk notice, verification type...)
 • Reply markers: highlight replies from big accounts, optionally dim low-quality ones
+• Following-list analysis: filter/sort the accounts you follow by "does not follow you", "suspected follow-for-follow", "new account"... and export CSV (only what you scrolled into view; stored locally)
+• Post review: on a profile, see which of the posts you have seen did best and which time of day works best (uses page data only)
 • Follower composition: on a Followers list, count how many followers have 3k+, 10k+ followers etc.; export CSV (only what you scrolled into view; stored locally)
 • Account card: one click on a profile creates an image with the avatar, profile link and a "follower quality index"; three styles; download or copy it
 • Follower count badge in the timeline, following lists and follower lists

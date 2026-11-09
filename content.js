@@ -5,6 +5,8 @@
   const DOM_KEY = "fl_dom";
   const FANS_KEY = "fl_fans";
   const FANS_MAX_ROWS = 20000, FANS_MAX_OWNERS = 3;
+  const FOLLOWS_KEY = "fl_follows";
+  const FOLLOWS_MAX_ROWS = 10000, FOLLOWS_MAX_OWNERS = 3;
   const HIST_MAX_USERS = 3000;
   const HIST_MAX_POINTS = 24;
   const HIST_MIN_GAP = 6 * 3600e3;
@@ -24,7 +26,10 @@
   // 只存这几个数字,不存简介和头像;只在本地,不上传
   const fans = new Map();
   let fansDirty = false;
-  const authorTweets = new Map();  // 作者 -> Map(推文 id -> { id, views, createdAt }),算"TA 平时的水平"用
+  // 关注列表分析:owner(正在看的是谁的"正在关注"列表) -> { ts, rows: Map(handle -> [粉丝数, 关注数, 注册时间ms, 记录时间ms, 对方是否关注你(1/0)]) }
+  const follows = new Map();
+  let followsDirty = false;
+  const authorTweets = new Map();  // 作者 -> Map(推文 id -> { id, views, createdAt, inter, text }),算"TA 平时的水平"和推文复盘用
   const tweetInfo = new Map();  // 推文 id -> { views, createdAt, author }(浏览量取最新一次)
   let settings = null;          // 读完存储后才渲染
   let settingsVer = 0;
@@ -40,13 +45,15 @@
 
   function init() {
     if (!storage) { settings = P.mergeSettings(); flush(); return; }
-    storage.get([SETTINGS_KEY, HIST_KEY, DOM_KEY, FANS_KEY], (res) => {
+    storage.get([SETTINGS_KEY, HIST_KEY, DOM_KEY, FANS_KEY, FOLLOWS_KEY], (res) => {
       settings = P.mergeSettings(res && res[SETTINGS_KEY]);
       hist = (res && res[HIST_KEY]) || {};
       const saved = (res && res[DOM_KEY]) || {};
       for (const h in saved) domScores.set(h, { ts: saved[h][0], s: saved[h][1], n: Object.values(saved[h][1]).reduce((a, b) => a + b, 0) });
       const sf = (res && res[FANS_KEY]) || {};
       for (const o in sf) fans.set(o, { ts: sf[o].ts || 0, rows: new Map(Object.entries(sf[o].rows || {})) });
+      const sg = (res && res[FOLLOWS_KEY]) || {};
+      for (const o in sg) follows.set(o, { ts: sg[o].ts || 0, rows: new Map(Object.entries(sg[o].rows || {})) });
       applyDebug(); applyHtml();
       flush();
     });
@@ -55,6 +62,7 @@
       if (changes[HIST_KEY] && changes[HIST_KEY].newValue === undefined) hist = {};  // 弹窗里清除了记录
       if (changes[DOM_KEY] && changes[DOM_KEY].newValue === undefined) { domScores.clear(); scheduleRender(); }
       if (changes[FANS_KEY] && changes[FANS_KEY].newValue === undefined) { fans.clear(); scheduleRender(); }
+      if (changes[FOLLOWS_KEY] && changes[FOLLOWS_KEY].newValue === undefined) { follows.clear(); scheduleRender(); }
       if (!changes[SETTINGS_KEY]) return;
       settings = P.mergeSettings(changes[SETTINGS_KEY].newValue);
       settingsVer++;
@@ -66,6 +74,7 @@
   // 把"隐藏别的插件的流速标"落到 <html> 的类上,由样式表生效(只在这条推文有我们的流速标时才隐藏)
   function applyHtml() {
     document.documentElement.classList.toggle("fl-hide-foreign", !!(settings && settings.enabled && settings.flow && settings.hideForeign));
+    for (const s of ["l", "xl"]) document.documentElement.classList.toggle("fl-size-" + s, !!(settings && settings.flowSize === s));   // 流速标大小
   }
 
   function flush() {
@@ -112,6 +121,13 @@
       const obj = {};
       for (const [o, v] of owners) obj[o] = { ts: v.ts, rows: Object.fromEntries(v.rows) };
       out[FANS_KEY] = obj;
+    }
+    if (followsDirty) {
+      followsDirty = false;
+      const owners = [...follows.entries()].sort((a, b) => b[1].ts - a[1].ts).slice(0, FOLLOWS_MAX_OWNERS);
+      const obj = {};
+      for (const [o, v] of owners) obj[o] = { ts: v.ts, rows: Object.fromEntries(v.rows) };
+      out[FOLLOWS_KEY] = obj;
     }
     if (storage && Object.keys(out).length) { try { storage.set(out); } catch (_) {} }
   }
@@ -163,6 +179,7 @@
     const { users: us, tweets } = P.extract(json);
     const now = Date.now();
     if (op && /^(BlueVerified)?Followers$/.test(op)) captureFans(us, now);
+    else if (op === "Following") captureFollows(us, now);
     for (const u of us) {
       users.set(u.handle, u);
       recordHistory(u, now);
@@ -178,7 +195,7 @@
       tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author, obs });
       let ai = authorTweets.get(t.author);
       if (!ai) authorTweets.set(t.author, (ai = new Map()));
-      ai.set(t.id, { id: t.id, views: t.views, createdAt: t.createdAt });
+      ai.set(t.id, { id: t.id, views: t.views, createdAt: t.createdAt, inter: t.interactions, text: t.text ? t.text.slice(0, 48) : "" });
       if (tweetSeen.has(t.id)) continue;
       tweetSeen.add(t.id);
       if (t.text && settings.tags.domain) {
@@ -214,6 +231,25 @@
       [...rec.rows.entries()].sort((a, b) => a[1][3] - b[1][3]).slice(0, rec.rows.size - FANS_MAX_ROWS).forEach(([h]) => rec.rows.delete(h));
     }
     rec.ts = now; fansDirty = true;
+    scheduleSave();
+  }
+
+  // ---------- 关注列表分析:边看"正在关注"列表边记 ----------
+  const FOLLOWS_PATH = /^\/([A-Za-z0-9_]{1,15})\/following\/?$/i;
+  function followsOwner() { const m = location.pathname.match(FOLLOWS_PATH); return m ? m[1].toLowerCase() : null; }
+  function captureFollows(us, now) {
+    const owner = followsOwner();
+    if (!owner || !settings.followsBar) return;
+    let rec = follows.get(owner);
+    if (!rec) follows.set(owner, (rec = { ts: now, rows: new Map() }));
+    for (const u of us) {
+      if (u.handle === owner) continue;
+      rec.rows.set(u.handle, [u.followers, u.following, u.createdAt ? new Date(u.createdAt).getTime() || 0 : 0, now, u.followedBy ? 1 : 0]);
+    }
+    if (rec.rows.size > FOLLOWS_MAX_ROWS) {
+      [...rec.rows.entries()].sort((a, b) => a[1][3] - b[1][3]).slice(0, rec.rows.size - FOLLOWS_MAX_ROWS).forEach(([h]) => rec.rows.delete(h));
+    }
+    rec.ts = now; followsDirty = true;
     scheduleSave();
   }
 
@@ -829,6 +865,142 @@
     document.addEventListener("keydown", function esc1(e) { if (e.key === "Escape") { closeFans(); document.removeEventListener("keydown", esc1); } });
     document.documentElement.append(modal);
   }
+  // ---------- 关注列表分析 ----------
+  function stickyAnchor(tabs) {
+    for (let n = tabs.parentElement, i = 0; n && i < 8 && n.getAttribute("data-testid") !== "primaryColumn"; n = n.parentElement, i++) {
+      if (getComputedStyle(n).position === "sticky") return n;
+    }
+    return tabs;
+  }
+  function ensureFollowsBar() {
+    const old = document.querySelector(".fl-fol-bar");
+    const owner = settings.followsBar && settings.enabled ? followsOwner() : null;
+    const tabs = owner && document.querySelector('[data-testid="primaryColumn"] [role="tablist"]');
+    if (!tabs) { if (old) old.remove(); return; }
+    const rec = follows.get(owner), n = rec ? rec.rows.size : 0, u = users.get(owner), total = u ? u.following : 0;
+    const text = n ? `📋 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位关注的人` : "📋 往下滚动关注列表,边看边统计";
+    const anchor = stickyAnchor(tabs);
+    let bar = old;
+    if (!bar || bar.dataset.o !== owner || bar.previousElementSibling !== anchor) {
+      if (bar) bar.remove();
+      bar = document.createElement("div");
+      bar.className = "fl-fol-bar"; bar.dataset.o = owner;
+      const t = document.createElement("span");
+      const b = document.createElement("button"); b.type = "button"; b.textContent = "关注分析";
+      b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openFollows(owner); });
+      bar.append(t, b);
+      anchor.insertAdjacentElement("afterend", bar);
+    }
+    const t = bar.firstElementChild;
+    if (t.textContent !== text) t.textContent = text;
+  }
+
+  const csvCell = (v) => { const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  function downloadCsv(name, lines) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv" }));
+    a.download = name; document.body.append(a); a.click(); a.remove();
+  }
+  function modalShell(title) {
+    closeFans();
+    const modal = document.createElement("div"); modal.id = "fl-fans-modal";
+    const box = document.createElement("div"); box.className = "fl-fans-box";
+    const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+    box.append(h("div", "fl-fans-h", title));
+    modal.append(box);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeFans(); });
+    document.addEventListener("keydown", function esc1(e) { if (e.key === "Escape") { closeFans(); document.removeEventListener("keydown", esc1); } });
+    document.documentElement.append(modal);
+    return { box, h };
+  }
+
+  function openFollows(owner) {
+    const rec = follows.get(owner), rows = rec ? [...rec.rows.entries()] : [];
+    const now = Date.now(), total = (users.get(owner) || {}).following || 0;
+    const { box, h } = modalShell(`<b>@${esc(owner)}</b> 的关注分析`);
+    const sum = P.followsSummary(rows.map(([, r]) => r), now);
+    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位关注的人` : " 位"}。只统计你已经在列表里滚动加载过的。"没关注你"指的是这些人里目前没有关注你的(以你当前登录的账号为准)。` : "还没有数据。回到\"正在关注\"列表往下滚动,粉丝透镜会边看边统计。"));
+    if (!sum.n) { const foot = h("div", "fl-fans-foot"); const b = h("button", "ghost", "关闭"); b.type = "button"; b.addEventListener("click", closeFans); foot.append(b); box.append(foot); return; }
+    let filter = "all", sort = "fol";
+    const chipsEl = h("div", "fl-fol-chips"), listEl = h("div", "fl-fol-list"), bar = h("div", "fl-fol-sort");
+    const sel = h("select"); for (const k in P.FOLLOW_SORTS) { const o = h("option", "", P.FOLLOW_SORTS[k].name); o.value = k; sel.append(o); }
+    sel.addEventListener("change", () => { sort = sel.value; paint(); });
+    bar.append(h("span", "", "排序"), sel);
+    const cur = () => rows.filter(([, r]) => P.FOLLOW_FILTERS[filter].fn(r, now)).sort(P.FOLLOW_SORTS[sort].cmp);
+    const paint = () => {
+      chipsEl.innerHTML = "";
+      for (const k in P.FOLLOW_FILTERS) { const b = h("button", k === filter ? "on" : "", `${P.FOLLOW_FILTERS[k].name}<em>${sum[k]}</em>`); b.type = "button"; b.addEventListener("click", () => { filter = k; paint(); }); chipsEl.append(b); }
+      const list = cur(), show = list.slice(0, 100);
+      listEl.innerHTML = `<div class="fl-fans-lh">${esc(P.FOLLOW_FILTERS[filter].name)} · 共 ${list.length.toLocaleString()} 位${list.length > 100 ? ",显示前 100 位" : ""}</div>` +
+        show.map(([hd, r]) => `<a href="https://x.com/${esc(hd)}" target="_blank" rel="noreferrer"><b>@${esc(hd)}</b><span>${P.fmt(r[0])} 粉</span><i>比 ${P.fmtRatio(r[0] / Math.max(1, r[1]))}</i><em class="${r[4] ? "ok" : "no"}">${r[4] ? "互关" : "没关注你"}</em></a>`).join("");
+    };
+    box.append(chipsEl, bar, listEl);
+    paint();
+    const foot = h("div", "fl-fans-foot");
+    const mk = (txt, fn, cls) => { const b = h("button", cls || "", txt); b.type = "button"; b.addEventListener("click", fn); return b; };
+    foot.append(mk("导出当前筛选 CSV", () => downloadCsv(`follows-${owner}.csv`, ["handle,粉丝数,关注数,注册时间,是否关注你", ...cur().map(([hd, r]) => [hd, r[0], r[1], r[2] ? new Date(r[2]).toISOString().slice(0, 10) : "", r[4] ? "是" : "否"].map(csvCell).join(","))])));
+    foot.append(mk("清除这个账号的统计", () => { follows.delete(owner); followsDirty = true; flushSaveNow(); closeFans(); scheduleRender(); }, "ghost"));
+    foot.append(mk("关闭", closeFans, "ghost"));
+    box.append(foot);
+  }
+
+  // ---------- 推文复盘:这个账号你刷到过的推文,哪几条最好、什么时段发得最好 ----------
+  const REVIEW_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16"/><rect x="5" y="11" width="3.2" height="6" rx="1"/><rect x="10.4" y="6" width="3.2" height="11" rx="1"/><rect x="15.8" y="9" width="3.2" height="8" rx="1"/></svg>';
+  function ensureReviewBtn() {
+    const old = document.querySelector(".fl-rev-btn");
+    const handle = settings.reviewBtn ? profileHandle() : null;
+    const card = handle && document.querySelector(".fl-card-btn.in-row");
+    if (!card || !users.has(handle)) { if (old) old.remove(); return; }
+    if (old && old.dataset.h === handle && old.isConnected && old.previousElementSibling === card) return;
+    if (old) old.remove();
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "fl-rev-btn in-row"; b.dataset.h = handle; b.setAttribute("aria-label", "推文复盘");
+    b.innerHTML = REVIEW_ICON;
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hideTip(); openReview(handle); });
+    b.addEventListener("mouseenter", () => placeTip(b, '<div class="fl-tip-h">📈 推文复盘</div><div class="fl-tip-n">你刷到过的这个账号的推文:哪几条最好、什么时段发得最好</div>'));
+    b.addEventListener("mouseleave", hideTip);
+    card.insertAdjacentElement("afterend", b);
+    const act = document.querySelector('[data-testid="userActions"], [data-testid="editProfileButton"]');
+    if (act) { alignCardBtn(b, act); setTimeout(() => alignCardBtn(b, act), 800); setTimeout(() => alignCardBtn(b, act), 2500); }
+  }
+
+  function openReview(handle) {
+    const ai = authorTweets.get(handle), items = ai ? [...ai.values()] : [], now = Date.now();
+    const u = users.get(handle) || {};
+    const { box, h } = modalShell(`<b>@${esc(handle)}</b> 的推文复盘`);
+    const sum = P.tweetsSummary(items, now);
+    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n}</b> 条推文(只算你已经刷到、并且有浏览量的),其中发出一天以上的 ${sum.nMature} 条用来看发帖时段。在个人主页多往下滚几屏,统计会更完整。` : "还没有数据。到这个账号的个人主页往下滚动,粉丝透镜会边看边统计它的推文。"));
+    if (sum.n) {
+      const key = h("div", "fl-fans-key");
+      key.append(h("div", "fl-fans-k", `<b>${Math.round(sum.median).toLocaleString()}</b><span>浏览量中位数</span><i>${u.followers ? "约粉丝量的 " + (sum.median / u.followers * 100).toFixed(sum.median / u.followers >= 0.1 ? 0 : 1) + "%" : ""}</i>`));
+      key.append(h("div", "fl-fans-k", `<b>${sum.er === null ? "—" : (sum.er * 100).toFixed(2) + "%"}</b><span>平均互动率</span><i>点赞+转发+回复+引用 ÷ 浏览</i>`));
+      key.append(h("div", "fl-fans-k", `<b>${sum.top[0].views.toLocaleString()}</b><span>最高浏览量</span><i>${esc(sum.top[0].text || "")}</i>`));
+      box.append(key);
+      box.append(h("div", "fl-rev-sec", "发帖时段(按发出一天以上的推文平均浏览量)"));
+      const maxAvg = Math.max(...sum.blocks.map((b) => b.avg), 1);
+      const bl = h("div", "fl-fans-bands");
+      for (const b of sum.blocks) {
+        const best = sum.best && sum.best.name === b.name;
+        bl.append(h("div", "fl-fans-band" + (best ? " on" : ""), `<span class="n">${esc(b.name)}</span><span class="b"><i style="width:${b.n ? Math.max(2, b.avg / maxAvg * 100) : 0}%"></i></span><span class="c">${b.n ? Math.round(b.avg).toLocaleString() : "—"}<em>${b.n} 条${best ? " ★" : ""}</em></span>`));
+      }
+      box.append(bl);
+      box.append(h("div", "fl-fans-extra", sum.best ? `平均浏览量最高的时段是 <b>${esc(sum.best.name)}</b>(样本不大,仅供参考)。` : "样本还不够下结论(至少要有两个时段,各有 2 条以上发出一天的推文)。"));
+      box.append(h("div", "fl-rev-sec", "浏览量最高的 10 条"));
+      const list = h("div", "fl-rev-list");
+      list.innerHTML = sum.top.map((t, i) => {
+        const f = P.flowOf({ views: t.views, createdAt: t.createdAt }, 0, now);
+        const er = t.views ? (t.inter || 0) / t.views : 0;
+        return `<a href="https://x.com/${esc(handle)}/status/${esc(t.id)}" target="_blank" rel="noreferrer"><b>${i + 1}</b><span class="t">${esc(t.text || "(没有文字)")}</span><span class="v">${t.views.toLocaleString()}</span><span class="m">${f ? f.emoji : ""} ${(er * 100).toFixed(1)}%</span></a>`;
+      }).join("");
+      box.append(list);
+    }
+    const foot = h("div", "fl-fans-foot");
+    const mk = (txt, fn, cls) => { const b = h("button", cls || "", txt); b.type = "button"; b.addEventListener("click", fn); return b; };
+    if (sum.n) foot.append(mk("导出 CSV", () => downloadCsv(`tweets-${handle}.csv`, ["id,发布时间,浏览量,互动数,互动率,开头", ...items.filter((x) => x.views >= 1).sort((a, b) => b.views - a.views).map((x) => [x.id, x.createdAt ? new Date(x.createdAt).toISOString() : "", x.views, x.inter || 0, x.views ? ((x.inter || 0) / x.views).toFixed(4) : "", x.text || ""].map(csvCell).join(","))])));
+    foot.append(mk("关闭", closeFans, "ghost"));
+    box.append(foot);
+  }
+
   function flushSaveNow() { if (saveTimer) clearTimeout(saveTimer); saveTimer = null; doSave(); }
 
   // ---------- 账号名片(个人主页上的「生成名片」)----------
@@ -955,7 +1127,7 @@
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
     document.querySelectorAll(".fl-vip, .fl-dimreply").forEach((c) => c.classList.remove("fl-vip", "fl-dimreply"));
-    document.querySelectorAll(".fl-fans-bar").forEach((n) => n.remove()); closeFans();
+    document.querySelectorAll(".fl-fans-bar, .fl-fol-bar, .fl-rev-btn").forEach((n) => n.remove()); closeFans();
   }
 
   // 只给"屏幕附近"的推文做装饰。X 的时间线会把远处的推文也留在页面里,用户根本看不到,给它们加特效纯属浪费。
@@ -1002,7 +1174,9 @@
     });
     markReplies(arts);
     ensureCardBtn();
+    ensureReviewBtn();
     ensureFansBar();
+    ensureFollowsBar();
     updateHud();
     perf.renderMs += performance.now() - t0;
   }
@@ -1016,7 +1190,7 @@
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
   const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"], [data-testid="UserName"]';
   function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || n.id === "fl-card-modal" || (typeof n.className === "string" && n.className.includes("fl-"))); }
-  const OURS_SEL = ".fl-badge, .fl-fans-bar, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
+  const OURS_SEL = ".fl-badge, .fl-fans-bar, .fl-fol-bar, .fl-rev-btn, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
   new MutationObserver((muts) => {
     const t0 = performance.now();
     try { onMutations(muts); } finally { perf.mutMs += performance.now() - t0; perf.mutCalls++; }

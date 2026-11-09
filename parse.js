@@ -19,8 +19,11 @@
     fansLines: "3000,10000,30000,50000,100000",   // 粉丝构成分档线(粉丝数)
     replyMark: true,      // 评论区:大 V 的回复高亮
     replyDim: false,      // 评论区:疑似互粉号/低活跃号的回复淡化(默认关)
+    followsBar: true,     // "正在关注"列表页顶部显示"已统计 N 位 · 关注分析"
+    reviewBtn: true,      // 个人主页上的"推文复盘"小图标
     fansBar: true,        // 粉丝列表页顶部显示"已统计 N 位粉丝 · 查看粉丝构成"
     fansLines: "3000,10000,30000,50000,100000",   // 粉丝构成的分档线(粉丝数)
+    flowSize: "m",        // 流速标大小:m 标准 / l 大 / xl 特大
     avatarSpin: false,    // 头像环转起来(默认静态,不晃眼)
     avatarFx: true,       // 头像特效:按这条推文的流速,给作者头像加圈和小角色
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
@@ -154,6 +157,50 @@
     const n = rows.length;
     const ge = (x) => rows.reduce((c, r) => c + (r[0] >= x ? 1 : 0), 0);
     return { n, counts, names: fansBandNames(lines), farm, fresh, ge3k: ge(3000), ge10k: ge(10000), ge30k: ge(30000) };
+  }
+
+  // ---- 关注列表分析 ----
+  // rows: [[粉丝数, 关注数, 注册时间ms, 记录时间ms, 对方是否关注你(1/0)], ...]
+  const isFarmRow = (r) => { const ratio = r[1] > 0 ? r[0] / r[1] : r[0] > 0 ? 99 : 1; return r[1] >= 1000 && ratio > 0.8 && ratio < 1.25 && r[0] < 5000; };
+  const FOLLOW_FILTERS = {
+    all: { name: "全部", fn: () => true },
+    nofb: { name: "没关注你", fn: (r) => !r[4] },
+    farm: { name: "疑似互粉号", fn: isFarmRow },
+    fresh: { name: "新号(<90 天)", fn: (r, now) => !!r[2] && (now - r[2]) / 86400000 < 90 },
+    big: { name: "≥ 1 万粉", fn: (r) => r[0] >= 10000 },
+    small: { name: "< 100 粉", fn: (r) => r[0] < 100 },
+  };
+  function followsSummary(rows, now) {
+    const out = { n: rows.length };
+    for (const k in FOLLOW_FILTERS) out[k] = rows.reduce((c, r) => c + (FOLLOW_FILTERS[k].fn(r, now) ? 1 : 0), 0);
+    return out;
+  }
+  const FOLLOW_SORTS = {
+    fol: { name: "粉丝数 多→少", cmp: (a, b) => b[1][0] - a[1][0] },
+    folAsc: { name: "粉丝数 少→多", cmp: (a, b) => a[1][0] - b[1][0] },
+    ratio: { name: "粉丝/关注比 高→低", cmp: (a, b) => (b[1][0] / Math.max(1, b[1][1])) - (a[1][0] / Math.max(1, a[1][1])) },
+    recent: { name: "最近记录", cmp: (a, b) => b[1][3] - a[1][3] },
+  };
+
+  // ---- 推文复盘 ----
+  // items: [{ id, views, createdAt, inter, text }]。只算浏览量 ≥ 1 的
+  const HOUR_BLOCKS = [["凌晨 0–6 点", 0, 6], ["上午 6–12 点", 6, 12], ["下午 12–18 点", 12, 18], ["晚上 18–24 点", 18, 24]];
+  function tweetsSummary(items, now) {
+    const t = (items || []).filter((x) => x.views >= 1 && x.createdAt);
+    const median = (a) => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+    const mature = t.filter((x) => (now - new Date(x.createdAt).getTime()) / 3600e3 >= 24);   // 发出一天以上,浏览量基本到位
+    const blocks = HOUR_BLOCKS.map(([name, lo, hi]) => {
+      const vs = mature.filter((x) => { const h = new Date(x.createdAt).getHours(); return h >= lo && h < hi; }).map((x) => x.views);
+      return { name, n: vs.length, avg: vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : 0 };
+    });
+    const totV = t.reduce((a, x) => a + x.views, 0), totI = t.reduce((a, x) => a + (x.inter || 0), 0);
+    const ranked = blocks.filter((b) => b.n >= 2).sort((a, b) => b.avg - a.avg);
+    return {
+      n: t.length, nMature: mature.length, median: median(t.map((x) => x.views)),
+      er: totV ? totI / totV : null,
+      top: [...t].sort((a, b) => b.views - a.views).slice(0, 10),
+      blocks, best: ranked.length >= 2 ? ranked[0] : null,
+    };
   }
 
   function readTweet(t, author) {
@@ -448,7 +495,7 @@
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary };
+  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary, FOLLOW_FILTERS, FOLLOW_SORTS, followsSummary, tweetsSummary };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

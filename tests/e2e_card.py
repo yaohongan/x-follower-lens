@@ -30,7 +30,7 @@ with sync_playwright() as p:
     ctx.route("https://x.com/home",lambda r:r.fulfill(status=200,content_type="text/html",body=HTML.replace('data-testid="UserName"','data-testid="Other"')))
     pg=ctx.new_page(); errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
     pg.goto("https://x.com/coder"); pg.wait_for_timeout(2500)
-    check("个人主页:名片入口是一个小图标(36px 圆形,没有文字),放在那排按钮(更多、私信)的最左边",pg.evaluate("(()=>{const b=document.querySelector('.fl-card-btn'),r=b&&b.getBoundingClientRect();return !!b&&b.textContent.trim()===''&&!!b.querySelector('svg')&&Math.round(r.width)===36&&Math.round(r.height)===36&&b.parentElement.firstElementChild===b&&b.nextElementSibling.dataset.testid==='userActions'})()"))
+    check("个人主页:名片入口是一个小图标(36px 圆形,没有文字),放在那排按钮(更多、私信)的最左边",pg.evaluate("(()=>{const b=document.querySelector('.fl-card-btn'),r=b&&b.getBoundingClientRect();return !!b&&b.textContent.trim()===''&&!!b.querySelector('svg')&&Math.round(r.width)===36&&Math.round(r.height)===36&&b.parentElement.firstElementChild===b&&(b.nextElementSibling.dataset.testid==='userActions'||b.nextElementSibling.classList.contains('fl-rev-btn'))})()"))
     check("图标不占新的一行:和旁边的按钮同一行(上下居中一致)",pg.evaluate("(()=>{const b=document.querySelector('.fl-card-btn').getBoundingClientRect(),m=document.querySelector('[data-testid=userActions]').getBoundingClientRect();return Math.abs(b.top+b.height/2-(m.top+m.height/2))<=1})()"))
     pg.hover(".fl-card-btn"); pg.wait_for_timeout(250)
     check("鼠标放上去:出现「生成账号名片」提示",pg.evaluate("(()=>{const t=document.getElementById('fl-tip');return !!t&&t.style.display!=='none'&&t.innerText.includes('生成账号名片')})()"))

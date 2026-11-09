@@ -1,6 +1,6 @@
 # 隐私政策 / Privacy Policy
 
-**粉丝透镜 Follower Lens** · 最后更新:2026-11-09
+**粉丝透镜 Follower Lens** · 最后更新:2026-11-10
 
 ## 中文
 
@@ -14,6 +14,8 @@
 - **你的设置**(各开关、徽标位置等)。
 - **粉丝数历史记录**:你浏览过的账号的用户名与粉丝数、记录时间,用于显示"近 7 天变化"。最多保存 3000 个账号、每个账号 40 个数据点。你可以随时在扩展的设置面板里点"清除记录"删除,或关闭"本地记录粉丝数变化"。
 - **粉丝构成统计**:你打开某个账号的"关注者"列表时,扩展会把你**已经滚动加载出来**的那些粉丝的 **用户名、粉丝数、关注数、注册时间**记下来(不记简介、头像和推文),用来统计"粉丝里有多少人超过 3000 / 1 万粉丝"。最多保留 3 个账号、每个账号 2 万条。你可以在统计面板里"清除这个账号的统计"或"导出 CSV"(导出的文件只保存在你自己的电脑上)。
+- **关注列表分析**:你打开某个账号的"正在关注"列表时,同样会把**已经滚动加载出来**的那些账号的 **用户名、粉丝数、关注数、注册时间、对方是否关注你**记在本地,用于"没关注你""疑似互粉号"等筛选和排序。最多保留 3 个账号、每个账号 1 万条,可在面板里清除或导出 CSV。
+- **推文复盘**只用你浏览时已经在页面里的推文数据(浏览量、发布时间、互动数、开头几十个字),**只保存在当前页面的内存里**,关闭或刷新页面就没有了,不写入存储。
 
 ### 它不会做什么
 - 不向任何服务器发送数据,不含任何统计、广告或跟踪代码。
@@ -36,7 +38,7 @@
 
 **What it reads.** It runs only on `x.com` and `twitter.com`. It reads data that the X web page has *already received* (usernames, follower/following counts, account creation date, tweet engagement counts, and your follow relationship with each account) to render badges and hover cards on the page.
 
-**What it stores.** The following is saved in your browser's local storage (`chrome.storage.local`) and never leaves your device: (1) your settings; (2) a follower-count history for accounts you have browsed (username, follower count, timestamp; capped at 3,000 accounts and 40 data points each) used to show 7-day changes; (3) when you open an account's "Followers" list, a compact record of the followers you have scrolled into view (username, follower count, following count, join date; no bio, avatar or posts; capped at 3 accounts and 20,000 rows each) used for the follower-composition panel. You can clear it or export it as CSV from that panel; exports stay on your computer. You can delete it anytime with "Clear history" in the extension popup, or turn history tracking off.
+**What it stores.** The following is saved in your browser's local storage (`chrome.storage.local`) and never leaves your device: (1) your settings; (2) a follower-count history for accounts you have browsed (username, follower count, timestamp; capped at 3,000 accounts and 40 data points each) used to show 7-day changes; (3) when you open an account's "Followers" list, a compact record of the followers you have scrolled into view (username, follower count, following count, join date; no bio, avatar or posts; capped at 3 accounts and 20,000 rows each) used for the follower-composition panel; (4) likewise for a "Following" list (username, follower/following counts, join date, whether that account follows you; capped at 3 accounts and 10,000 rows each) used for filtering and sorting. You can clear these or export them as CSV from the panels; exports stay on your computer. The "post review" panel uses only tweet data already on the page and keeps it in page memory only (nothing is written to storage). You can delete it anytime with "Clear history" in the extension popup, or turn history tracking off.
 
 **What it does not do.** It sends no data to any server and contains no analytics, ads, or trackers. It does not make its own network requests; it only reads data the page is already sending and receiving. It does not read passwords, direct messages, cookies, or credentials. It uses no remotely hosted code.
 
