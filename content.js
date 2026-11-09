@@ -276,7 +276,7 @@
         matched.sort((x, y) => users.get(y).followers - users.get(x).followers);
       }
       const sig = matched.length ? matched.map((h) => h + ":" + users.get(h).followers).join(",") + "|" + line + "|" + settingsVer : "";
-      const old = a.querySelector(":scope .fl-notif-row");
+      const next = a.nextElementSibling, old = next && next.classList && next.classList.contains("fl-notif-row") ? next : null;   // 放在通知(article)下面一行,不去动 X 自己的版式
       if (!matched.length) { if (old) old.remove(); a.classList.remove("fl-notif-vip"); delete a.dataset.flN; continue; }
       if (old && a.dataset.flN === sig) continue;
       if (old) old.remove();
@@ -293,7 +293,8 @@
         row.append(item);
       }
       if (matched.length > 3) { const more = document.createElement("span"); more.className = "fl-notif-more"; more.textContent = `…还有 ${matched.length - 3} 位`; row.append(more); }
-      a.append(row);
+      row.classList.toggle("vip", vip);
+      a.insertAdjacentElement("afterend", row);
       a.classList.toggle("fl-notif-vip", vip);
       a.dataset.flN = sig;
     }

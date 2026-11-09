@@ -346,3 +346,4 @@ html.fl-size-xl .fl-flow { font-size: 17px; line-height: 24px; padding: 5px 14px
 .fl-notif-more { opacity: 0.6; }
 .fl-notif-row .fl-tag.rel { display: none; }   /* 通知里本来就是"关注了你",不用再标一次 */
 article.fl-notif-vip { box-shadow: inset 3px 0 0 #f5b301; background: rgba(245, 179, 1, 0.07); }
+.fl-notif-row.vip { box-shadow: inset 3px 0 0 #f5b301; background: rgba(245, 179, 1, 0.07); }

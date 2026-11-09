@@ -6,7 +6,7 @@
 粉丝透镜 Follower Lens
 
 **摘要(Summary,≤132 字符)**
-在 X 信息流里显示推文流速、头像流速环和内容方向标签,还能一键生成账号名片;同时显示粉丝数和质量标签。
+在 X 里显示推文流速、头像流速环、账号状态和内容方向标签;能分析粉丝构成、关注列表和推文表现,新粉丝大号高亮,还能一键生成账号名片;同时显示粉丝数和质量标签。
 
 **类别(Category)**:工具 / Tools(或"社交与通讯")
 
@@ -36,7 +36,7 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 【隐私】
 • 不收集、不上传、不出售任何数据,没有统计和广告代码
 • 只读取 X 网页自己已经收到的数据,不主动发出数据请求;唯一的例外:你点"生成账号名片"时会读取该账号的头像图片(来自 X 自己的图片服务器),只用于在本地画图
-• 设置和粉丝数历史只保存在你浏览器本地,可随时在设置面板里清除
+• 设置、粉丝数历史,以及你滚动加载过的粉丝/关注列表统计,只保存在你浏览器本地,可随时在设置面板或统计面板里清除
 • 开源:https://github.com/yaohongan/x-follower-lens
 
 【说明】
@@ -67,7 +67,7 @@ FEATURES
 PRIVACY
 • Collects, uploads and sells nothing. No analytics, ads or trackers.
 • Reads only data the X web page has already received and makes no data requests of its own. The one exception: when you click "create account card", it loads that account's avatar image (from X's own image server) just to draw the card locally.
-• Settings and follower history stay in your browser and can be cleared at any time.
+• Settings, follower history and the follower/following list statistics (only what you scrolled into view) stay in your browser and can be cleared at any time.
 • Open source: https://github.com/yaohongan/x-follower-lens
 
 Velocity, tags and the quality index are estimates from public numbers, for reference only. This is an unofficial personal project, not affiliated with X Corp.
@@ -92,8 +92,8 @@ Velocity, tags and the quality index are estimates from public numbers, for refe
 
 | 项目 | 理由(粘贴) |
 |---|---|
-| storage | 保存用户的设置(各开关、徽标位置)以及用户本地的粉丝数历史记录,用于显示"近 7 天变化"。数据只保存在本地,不上传。 |
-| 内容脚本(x.com、twitter.com;含"生成账号名片"时读取头像图片) | 扩展只在 x.com 和 twitter.com 运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数),并在页面上显示徽标。不读取任何其它网站。 |
+| storage | 保存用户的设置(各开关、徽标位置),以及用户本地的粉丝数历史记录(用于显示"近 7 天变化")和用户滚动加载过的粉丝/关注列表的几个公开数字(粉丝数、关注数、注册时间,用于粉丝构成与关注列表分析)。数据只保存在本地,不上传,用户可在面板里清除或导出。 |
+| 内容脚本(x.com、twitter.com;含"生成账号名片"时读取头像图片) | 扩展只在 x.com 和 twitter.com 运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数、账号状态标记、通知里的关注类型),并在页面上显示徽标、统计面板和标记。不读取任何其它网站。 |
 
 > 本扩展没有声明 `host_permissions`、`tabs`、`webRequest` 等权限,所以不需要为它们写理由。
 
