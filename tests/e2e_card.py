@@ -41,8 +41,16 @@ with sync_playwright() as p:
     check("画布尺寸 1600×2360,且画了内容(不是空白)",info["w"]==1600 and info["h"]==2360 and info["nz"]>50,(info["w"],info["h"],info["nz"]))
     open(os.path.join(tempfile.gettempdir(),"shot_card.png"),"wb").write(base64.b64decode(info["url"].split(",")[1]))
     check("头像:用接口数据里的头像地址(并换成 400x400 大图),不是首字母",any(u.endswith("pic_400x400.png") for u in reqs),reqs)
-    px=pg.evaluate("(()=>{const c=document.querySelector('#fl-card-modal canvas'),g=c.getContext('2d');const d=g.getImageData(2*(48+24+52),2*(108+75),1,1).data;return [d[0],d[1],d[2]]})()")
-    check("头像位置画的是头像本身的颜色,不是灰色首字母底(#475569)",px!=[71,85,105],px)
+    PXJS="(([x,y])=>{const c=document.querySelector('#fl-card-modal canvas'),g=c.getContext('2d');const d=g.getImageData(2*x,2*y,1,1).data;return [d[0],d[1],d[2]]})"
+    BG={"wrapped":[198,255,58],"gold":[16,15,14]}
+    pxw=pg.evaluate(PXJS,[666,128])
+    check("年度风格:头像位置画的是头像本身的颜色(不是首字母灰底 #475569,也不是背景色)",pxw!=[71,85,105] and sum(abs(a-b) for a,b in zip(pxw,BG["wrapped"]))>40,pxw)
+    pg.click(".fl-card-themes button[data-t=gold]"); pg.wait_for_timeout(300)
+    pxg=pg.evaluate(PXJS,[156,270])
+    check("黑金风格:头像位置同样是头像本身的颜色",pxg!=[71,85,105] and sum(pxg)>60,pxg)
+    check("风格按钮只有「年度」「黑金」两个,切换后记住",pg.evaluate("[...document.querySelectorAll('.fl-card-themes button')].map(b=>b.textContent).join()")=="年度,黑金" and pg.evaluate("localStorage.getItem('fl_card_theme')")=="gold")
+    pg.click(".fl-card-themes button[data-t=wrapped]"); pg.wait_for_timeout(200)
+
     with pg.expect_download() as dl: pg.click('#fl-card-modal [data-a=dl]')
     check("下载图片:文件名带账号名",dl.value.suggested_filename=="粉丝透镜-coder.png",dl.value.suggested_filename)
     pg.keyboard.press("Escape"); pg.wait_for_timeout(300)

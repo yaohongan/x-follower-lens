@@ -922,8 +922,9 @@
     const avatar = await loadAvatar(handle);
     if (!users.has(handle) || !m.isConnected) return;
     const cd = cardData(handle, avatar);
-    let theme = "aurora";
-    try { theme = localStorage.getItem("fl_card_theme") || "aurora"; } catch (_) {}
+    let theme = "wrapped";
+    try { theme = localStorage.getItem("fl_card_theme") || "wrapped"; } catch (_) {}
+    if (!window.FollowerLensCard.THEMES.some(([k]) => k === theme)) theme = "wrapped";   // 以前存的旧风格名(极光/暗夜/纸质)已经没有了
     const paint = () => {
       window.FollowerLensCard.draw(cv, cd, theme);
       m.querySelectorAll(".fl-card-themes button").forEach((b) => b.classList.toggle("on", b.dataset.t === theme));
