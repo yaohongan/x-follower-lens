@@ -1,18 +1,19 @@
 # 隐私政策 / Privacy Policy
 
-**粉丝透镜 Follower Lens** · 最后更新:2026-10-26
+**粉丝透镜 Follower Lens** · 最后更新:2026-11-09
 
 ## 中文
 
 **一句话:这个扩展不收集、不上传、不出售你的任何数据。**
 
 ### 它会读取什么
-扩展只在 `x.com` 和 `twitter.com` 运行。它读取的是 **X 网页自己已经收到的数据**(用户名、粉丝数、关注数、注册时间、推文互动数、你与对方的关注关系),用来在页面上显示徽标和悬停卡片。
+扩展只在 `x.com` 和 `twitter.com` 运行。它读取的是 **X 网页自己已经收到的数据**(用户名、粉丝数、关注数、注册时间、推文互动数、你与对方的关注关系,以及页面里自带的账号状态标记,如是否受保护、是否认证、X 加的风险提示),用来在页面上显示徽标和悬停卡片。
 
 ### 它会保存什么
 以下内容保存在你浏览器的本地存储(`chrome.storage.local`)里,不会离开你的设备:
 - **你的设置**(各开关、徽标位置等)。
 - **粉丝数历史记录**:你浏览过的账号的用户名与粉丝数、记录时间,用于显示"近 7 天变化"。最多保存 3000 个账号、每个账号 40 个数据点。你可以随时在扩展的设置面板里点"清除记录"删除,或关闭"本地记录粉丝数变化"。
+- **粉丝构成统计**:你打开某个账号的"关注者"列表时,扩展会把你**已经滚动加载出来**的那些粉丝的 **用户名、粉丝数、关注数、注册时间**记下来(不记简介、头像和推文),用来统计"粉丝里有多少人超过 3000 / 1 万粉丝"。最多保留 5 个账号、每个账号 2 万条。你可以在统计面板里"清除这个账号的统计"或"导出 CSV"(导出的文件只保存在你自己的电脑上)。
 
 ### 它不会做什么
 - 不向任何服务器发送数据,不含任何统计、广告或跟踪代码。
@@ -35,7 +36,7 @@
 
 **What it reads.** It runs only on `x.com` and `twitter.com`. It reads data that the X web page has *already received* (usernames, follower/following counts, account creation date, tweet engagement counts, and your follow relationship with each account) to render badges and hover cards on the page.
 
-**What it stores.** The following is saved in your browser's local storage (`chrome.storage.local`) and never leaves your device: (1) your settings; (2) a follower-count history for accounts you have browsed (username, follower count, timestamp; capped at 3,000 accounts and 40 data points each) used to show 7-day changes. You can delete it anytime with "Clear history" in the extension popup, or turn history tracking off.
+**What it stores.** The following is saved in your browser's local storage (`chrome.storage.local`) and never leaves your device: (1) your settings; (2) a follower-count history for accounts you have browsed (username, follower count, timestamp; capped at 3,000 accounts and 40 data points each) used to show 7-day changes; (3) when you open an account's "Followers" list, a compact record of the followers you have scrolled into view (username, follower count, following count, join date; no bio, avatar or posts; capped at 5 accounts and 20,000 rows each) used for the follower-composition panel. You can clear it or export it as CSV from that panel; exports stay on your computer. You can delete it anytime with "Clear history" in the extension popup, or turn history tracking off.
 
 **What it does not do.** It sends no data to any server and contains no analytics, ads, or trackers. It does not make its own network requests; it only reads data the page is already sending and receiving. It does not read passwords, direct messages, cookies, or credentials. It uses no remotely hosted code.
 

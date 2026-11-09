@@ -11,8 +11,10 @@
   const relevant = (text) => typeof text === "string" && (text.includes('"relationship_counts"') || text.includes('"followers_count"'));
   const wanted = (url) => isGraphql(url) && WANT.test(url);
 
-  const emit = (text) => {
-    if (relevant(text)) window.postMessage({ source: SOURCE, body: text }, "*");
+  // 接口名(URL 里 /graphql/<哈希>/<接口名>)一起传过去:内容脚本靠它认出"粉丝列表"这种响应
+  const opOf = (url) => { const m = /\/graphql\/[^/]+\/([A-Za-z0-9_]+)/.exec(url); return m ? m[1] : ""; };
+  const emit = (text, url) => {
+    if (relevant(text)) window.postMessage({ source: SOURCE, body: text, op: opOf(url) }, "*");
   };
 
   const origFetch = window.fetch;
@@ -20,7 +22,7 @@
     const p = origFetch.apply(this, args);               // X 拿到的就是它自己的 Promise,不多等任何东西
     try {
       const url = typeof args[0] === "string" ? args[0] : args[0] && args[0].url;
-      if (wanted(url)) p.then((res) => { try { res.clone().text().then(emit).catch(() => {}); } catch (_) {} }, () => {});
+      if (wanted(url)) p.then((res) => { try { res.clone().text().then((t) => emit(t, url)).catch(() => {}); } catch (_) {} }, () => {});
     } catch (_) {}
     return p;
   };
@@ -29,7 +31,7 @@
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     if (wanted(url)) {
       this.addEventListener("load", () => {
-        try { emit(this.responseText); } catch (_) {}
+        try { emit(this.responseText, url); } catch (_) {}
       });
     }
     return origOpen.call(this, method, url, ...rest);

@@ -3,6 +3,8 @@
   const SETTINGS_KEY = "fl_settings";
   const HIST_KEY = "fl_hist";
   const DOM_KEY = "fl_dom";
+  const FANS_KEY = "fl_fans";
+  const FANS_MAX_ROWS = 20000, FANS_MAX_OWNERS = 5;
   const HIST_MAX_USERS = 3000;
   const HIST_MAX_POINTS = 24;
   const HIST_MIN_GAP = 6 * 3600e3;
@@ -18,6 +20,10 @@
   const users = new Map();      // handle -> user
   const tweetSeen = new Set();  // 去重,避免同一条推文重复累计
   const stats = new Map();      // handle -> { views, interactions }
+  // 粉丝构成:owner(正在看的是谁的粉丝列表) -> { ts, rows: Map(handle -> [粉丝数, 关注数, 注册时间ms, 记录时间ms]) }
+  // 只存这几个数字,不存简介和头像;只在本地,不上传
+  const fans = new Map();
+  let fansDirty = false;
   const authorTweets = new Map();  // 作者 -> Map(推文 id -> { id, views, createdAt }),算"TA 平时的水平"用
   const tweetInfo = new Map();  // 推文 id -> { views, createdAt, author }(浏览量取最新一次)
   let settings = null;          // 读完存储后才渲染
@@ -34,11 +40,13 @@
 
   function init() {
     if (!storage) { settings = P.mergeSettings(); flush(); return; }
-    storage.get([SETTINGS_KEY, HIST_KEY, DOM_KEY], (res) => {
+    storage.get([SETTINGS_KEY, HIST_KEY, DOM_KEY, FANS_KEY], (res) => {
       settings = P.mergeSettings(res && res[SETTINGS_KEY]);
       hist = (res && res[HIST_KEY]) || {};
       const saved = (res && res[DOM_KEY]) || {};
       for (const h in saved) domScores.set(h, { ts: saved[h][0], s: saved[h][1], n: Object.values(saved[h][1]).reduce((a, b) => a + b, 0) });
+      const sf = (res && res[FANS_KEY]) || {};
+      for (const o in sf) fans.set(o, { ts: sf[o].ts || 0, rows: new Map(Object.entries(sf[o].rows || {})) });
       applyDebug(); applyHtml();
       flush();
     });
@@ -46,6 +54,7 @@
       if (area !== "local") return;
       if (changes[HIST_KEY] && changes[HIST_KEY].newValue === undefined) hist = {};  // 弹窗里清除了记录
       if (changes[DOM_KEY] && changes[DOM_KEY].newValue === undefined) { domScores.clear(); scheduleRender(); }
+      if (changes[FANS_KEY] && changes[FANS_KEY].newValue === undefined) { fans.clear(); scheduleRender(); }
       if (!changes[SETTINGS_KEY]) return;
       settings = P.mergeSettings(changes[SETTINGS_KEY].newValue);
       settingsVer++;
@@ -97,6 +106,13 @@
       for (const [h, v] of rows) obj[h] = [v.ts, v.s];
       out[DOM_KEY] = obj;
     }
+    if (fansDirty) {
+      fansDirty = false;
+      const owners = [...fans.entries()].sort((a, b) => b[1].ts - a[1].ts).slice(0, FANS_MAX_OWNERS);
+      const obj = {};
+      for (const [o, v] of owners) obj[o] = { ts: v.ts, rows: Object.fromEntries(v.rows) };
+      out[FANS_KEY] = obj;
+    }
     if (storage && Object.keys(out).length) { try { storage.set(out); } catch (_) {} }
   }
   // 平时 20 秒才存一次(整份历史序列化不小,滚动时别频繁存);页面切到后台或关闭时立刻存,不丢数据
@@ -117,35 +133,36 @@
   let draining = false;
   function drain() {
     const t0 = performance.now();
-    do { handleMessage(queue.shift()); } while (queue.length && performance.now() - t0 < 12);
+    do { const q = queue.shift(); handleMessage(q.body, q.op); } while (queue.length && performance.now() - t0 < 12);
     scheduleRender();
     if (queue.length) setTimeout(drain, 0); else draining = false;
   }
-  function enqueue(body) {
+  function enqueue(body, op) {
     // 总开关关着:数据包直接丢掉,不解析、不记录历史、不排队。这样关掉总开关就能干净地对比"有没有这个插件"
     if (!settings.enabled) return;
-    queue.push(body);
+    queue.push({ body, op });
     if (!draining) { draining = true; setTimeout(drain, 0); }
   }
 
   window.addEventListener("message", (e) => {
     if (e.source !== window || !e.data || e.data.source !== "follower-lens") return;
     msgCount++;
-    if (!settings) { pending.push(e.data.body); return; }
-    enqueue(e.data.body);
+    if (!settings) { pending.push({ body: e.data.body, op: e.data.op }); return; }
+    enqueue(e.data.body, e.data.op);
   });
 
-  function handleMessage(body) {
+  function handleMessage(body, op) {
     const t0 = performance.now();
     perf.packets++; perf.bytes += body.length;
-    try { handleMessageInner(body); } finally { perf.handleMs += performance.now() - t0; }
+    try { handleMessageInner(body, op); } finally { perf.handleMs += performance.now() - t0; }
   }
 
-  function handleMessageInner(body) {
+  function handleMessageInner(body, op) {
     let json;
     try { json = JSON.parse(body); } catch (_) { return; }
     const { users: us, tweets } = P.extract(json);
     const now = Date.now();
+    if (op && /^(BlueVerified)?Followers$/.test(op)) captureFans(us, now);
     for (const u of us) {
       users.set(u.handle, u);
       recordHistory(u, now);
@@ -181,6 +198,25 @@
     if (histDirty || domDirty) scheduleSave();
   }
 
+  // ---------- 粉丝构成:边看粉丝列表边记 ----------
+  const FANS_PATH = /^\/([A-Za-z0-9_]{1,15})\/(?:followers|verified_followers)\/?$/i;
+  function fansOwner() { const m = location.pathname.match(FANS_PATH); return m ? m[1].toLowerCase() : null; }
+  function captureFans(us, now) {
+    const owner = fansOwner();
+    if (!owner || !settings.fansBar) return;
+    let rec = fans.get(owner);
+    if (!rec) fans.set(owner, (rec = { ts: now, rows: new Map() }));
+    for (const u of us) {
+      if (u.handle === owner) continue;
+      rec.rows.set(u.handle, [u.followers, u.following, u.createdAt ? new Date(u.createdAt).getTime() || 0 : 0, now]);
+    }
+    if (rec.rows.size > FANS_MAX_ROWS) {
+      [...rec.rows.entries()].sort((a, b) => a[1][3] - b[1][3]).slice(0, rec.rows.size - FANS_MAX_ROWS).forEach(([h]) => rec.rows.delete(h));
+    }
+    rec.ts = now; fansDirty = true;
+    scheduleSave();
+  }
+
   // ---------- 渲染 ----------
   function handleOf(container) {
     for (const a of container.querySelectorAll('a[role="link"][href^="/"]')) {
@@ -212,6 +248,8 @@
     main.className = "fl-main" + (settings.tierColors ? " t" + P.tier(u.followers) : "");
     main.textContent = `${P.fmt(u.followers)} 粉丝`;
     wrap.append(main);
+    const risk = P.statusOf(u).risk;
+    if (risk >= 1) { const dot = document.createElement("span"); dot.className = "fl-dot r" + risk; dot.setAttribute("aria-hidden", "true"); wrap.append(dot); }
 
     if (settings.showRatio && u.following > 0) {
       const r = document.createElement("span");
@@ -244,7 +282,8 @@
   function sigOf(handle, compact) {
     const u = users.get(handle), s = stats.get(handle);
     const d = domScores.get(handle);
-    return [u.followers, s ? s.views : 0, u.followedBy, u.iFollow, settingsVer, compact ? 1 : 0, d ? d.n : 0].join("|");
+    const st = u.st;
+    return [u.followers, s ? s.views : 0, u.followedBy, u.iFollow, settingsVer, compact ? 1 : 0, d ? d.n : 0, st ? [st.inter, st.wh ? 1 : 0, st.sens ? 1 : 0, st.blockedBy ? 1 : 0].join("") : ""].join("|");
   }
 
   // ----- 推文头部:行内 / 单独一行 / 自动 -----
@@ -687,6 +726,111 @@
   }
 
 
+  // ---------- 评论区:大 V 的回复高亮,低质量账号的回复可选淡化 ----------
+  function markReplies(arts) {
+    const m = location.pathname.match(/^\/[A-Za-z0-9_]{1,15}\/status\/(\d+)/);
+    for (const a of arts) {
+      let vip = false, dim = false;
+      if (m && settings.enabled && (settings.replyMark || settings.replyDim)) {
+        const id = tweetIdOf(a);
+        const un = a.querySelector('[data-testid="User-Name"]');
+        const handle = un && handleOf(un);
+        const u = handle && users.get(handle);
+        if (u && id !== m[1]) {
+          const list = P.tags(u, stats.get(handle), Date.now(), settings, null);
+          vip = settings.replyMark && list.some((t) => t.key === "bigV");
+          dim = settings.replyDim && P.shouldDim(list);
+        }
+      }
+      if (a.classList.contains("fl-vip") !== vip) a.classList.toggle("fl-vip", vip);
+      if (a.classList.contains("fl-dimreply") !== dim) a.classList.toggle("fl-dimreply", dim);
+    }
+  }
+
+  // ---------- 粉丝构成 ----------
+  const fmtPct = (x, n) => (n ? (x / n * 100).toFixed(x / n >= 0.1 ? 0 : 1) : "0") + "%";
+  function fansTotal(owner) { const u = users.get(owner); return u ? u.followers : 0; }
+  function ensureFansBar() {
+    const old = document.querySelector(".fl-fans-bar");
+    const owner = settings.fansBar && settings.enabled ? fansOwner() : null;
+    const tabs = owner && document.querySelector('[data-testid="primaryColumn"] [role="tablist"]');
+    if (!tabs) { if (old) old.remove(); return; }
+    const rec = fans.get(owner), n = rec ? rec.rows.size : 0, total = fansTotal(owner);
+    const text = n ? `📊 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位粉丝` : "📊 往下滚动粉丝列表,边看边统计粉丝构成";
+    // X 的标签栏在一个 sticky 的头部里,在里面插东西会被列表盖住。放在这个头部后面,跟着列表一起滚
+    let anchor = tabs;
+    for (let n = tabs.parentElement, i = 0; n && i < 8 && n.getAttribute("data-testid") !== "primaryColumn"; n = n.parentElement, i++) {
+      if (getComputedStyle(n).position === "sticky") { anchor = n; break; }
+    }
+    let bar = old;
+    if (!bar || bar.dataset.o !== owner || bar.previousElementSibling !== anchor) {
+      if (bar) bar.remove();
+      bar = document.createElement("div");
+      bar.className = "fl-fans-bar"; bar.dataset.o = owner;
+      const t = document.createElement("span"); t.className = "fl-fans-t";
+      const b = document.createElement("button"); b.type = "button"; b.textContent = "查看粉丝构成";
+      b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openFans(owner); });
+      bar.append(t, b);
+      anchor.insertAdjacentElement("afterend", bar);
+    }
+    const t = bar.firstElementChild;
+    if (t.textContent !== text) t.textContent = text;
+  }
+
+  function closeFans() { const m = document.getElementById("fl-fans-modal"); if (m) m.remove(); }
+  function openFans(owner) {
+    closeFans();
+    const rec = fans.get(owner), rows = rec ? [...rec.rows.entries()] : [];
+    const lines = P.parseFansLines(settings.fansLines);
+    const now = Date.now();
+    const sum = P.fansSummary(rows.map(([, r]) => r), lines, now), total = fansTotal(owner);
+    const modal = document.createElement("div"); modal.id = "fl-fans-modal";
+    const box = document.createElement("div"); box.className = "fl-fans-box";
+    const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+    box.append(h("div", "fl-fans-h", `<b>@${esc(owner)}</b> 的粉丝构成`));
+    const cov = total ? Math.min(100, sum.n / total * 100) : null;
+    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。只统计你已经在粉丝列表里滚动加载过的,粉丝越多越不全,多滚几次会更完整。` : "还没有数据。回到粉丝列表往下滚动,粉丝透镜会边看边统计。"));
+    if (sum.n) {
+      const key = h("div", "fl-fans-key");
+      for (const [lab, n] of [["≥ 3000", sum.ge3k], ["≥ 1万", sum.ge10k], ["≥ 3万", sum.ge30k]]) key.append(h("div", "fl-fans-k", `<b>${n.toLocaleString()}</b><span>${lab}</span><i>${fmtPct(n, sum.n)}</i>`));
+      box.append(key);
+      const max = Math.max(...sum.counts, 1);
+      const bands = h("div", "fl-fans-bands");
+      const detail = h("div", "fl-fans-list");
+      const showBand = (i) => {
+        const lo = i === 0 ? 0 : lines[i - 1], hi = i < lines.length ? lines[i] : Infinity;
+        const list = rows.filter(([, r]) => r[0] >= lo && r[0] < hi).sort((a, b) => b[1][0] - a[1][0]).slice(0, 60);
+        detail.innerHTML = `<div class="fl-fans-lh">${esc(sum.names[i])} · 共 ${sum.counts[i].toLocaleString()} 位${sum.counts[i] > 60 ? ",显示粉丝最多的 60 位" : ""}</div>` +
+          list.map(([hd, r]) => `<a href="https://x.com/${esc(hd)}" target="_blank" rel="noreferrer">@${esc(hd)}<span>${P.fmt(r[0])}</span></a>`).join("");
+        bands.querySelectorAll(".fl-fans-band").forEach((el, k) => el.classList.toggle("on", k === i));
+      };
+      sum.names.forEach((name, i) => {
+        const row = h("button", "fl-fans-band", `<span class="n">${esc(name)}</span><span class="b"><i style="width:${Math.max(sum.counts[i] ? 2 : 0, sum.counts[i] / max * 100)}%"></i></span><span class="c">${sum.counts[i].toLocaleString()}<em>${fmtPct(sum.counts[i], sum.n)}</em></span>`);
+        row.type = "button"; row.addEventListener("click", () => showBand(i));
+        bands.append(row);
+      });
+      box.append(bands);
+      box.append(h("div", "fl-fans-extra", `疑似互粉号 <b>${fmtPct(sum.farm, sum.n)}</b> · 注册不到 90 天的新号 <b>${fmtPct(sum.fresh, sum.n)}</b>`));
+      box.append(detail);
+    }
+    const foot = h("div", "fl-fans-foot");
+    const mk = (txt, fn, cls) => { const b = h("button", cls || "", txt); b.type = "button"; b.addEventListener("click", fn); return b; };
+    if (sum.n) {
+      foot.append(mk("导出 CSV", () => {
+        const csv = "\ufeffhandle,粉丝数,关注数,注册时间\n" + rows.map(([hd, r]) => `${hd},${r[0]},${r[1]},${r[2] ? new Date(r[2]).toISOString().slice(0, 10) : ""}`).join("\n");
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = `fans-${owner}.csv`; document.body.append(a); a.click(); a.remove();
+      }));
+      foot.append(mk("清除这个账号的统计", () => { fans.delete(owner); fansDirty = true; flushSaveNow(); closeFans(); scheduleRender(); }, "ghost"));
+    }
+    foot.append(mk("关闭", closeFans, "ghost"));
+    box.append(foot);
+    modal.append(box);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeFans(); });
+    document.addEventListener("keydown", function esc1(e) { if (e.key === "Escape") { closeFans(); document.removeEventListener("keydown", esc1); } });
+    document.documentElement.append(modal);
+  }
+  function flushSaveNow() { if (saveTimer) clearTimeout(saveTimer); saveTimer = null; doSave(); }
+
   // ---------- 账号名片(个人主页上的「生成名片」)----------
   const RESERVED = new Set(["home", "explore", "notifications", "messages", "i", "settings", "search", "compose", "login", "signup", "tos", "privacy", "intent", "share", "hashtag", "jobs", "lists", "bookmarks", "communities", "premium", "verified-orgs-signup"]);
   function profileHandle() {
@@ -809,6 +953,8 @@
     document.querySelectorAll(".fl-line").forEach((l) => l.remove());
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
+    document.querySelectorAll(".fl-vip, .fl-dimreply").forEach((c) => c.classList.remove("fl-vip", "fl-dimreply"));
+    document.querySelectorAll(".fl-fans-bar").forEach((n) => n.remove()); closeFans();
   }
 
   // 只给"屏幕附近"的推文做装饰。X 的时间线会把远处的推文也留在页面里,用户根本看不到,给它们加特效纯属浪费。
@@ -853,7 +999,9 @@
       const nameBlock = cell.querySelector('[dir="ltr"]')?.closest("div");
       decorateCell(cell, nameBlock && nameBlock.parentElement);
     });
+    markReplies(arts);
     ensureCardBtn();
+    ensureFansBar();
     updateHud();
     perf.renderMs += performance.now() - t0;
   }
@@ -867,7 +1015,7 @@
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
   const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"], [data-testid="UserName"]';
   function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || n.id === "fl-card-modal" || (typeof n.className === "string" && n.className.includes("fl-"))); }
-  const OURS_SEL = ".fl-badge, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
+  const OURS_SEL = ".fl-badge, .fl-fans-bar, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
   new MutationObserver((muts) => {
     const t0 = performance.now();
     try { onMutations(muts); } finally { perf.mutMs += performance.now() - t0; perf.mutCalls++; }
@@ -952,8 +1100,11 @@
     }
     const rel = u.followedBy && u.iFollow ? "互相关注" : u.followedBy ? "TA 关注了你" : u.iFollow ? "你关注了 TA" : "";
     if (rel) rows.push(["关系", rel]);
+    const st = P.statusOf(u);
+    const stLines = st.items.map((i) => `<div class="fl-tip-st l${i.level}">${i.icon} ${esc(i.text)}</div>`).join("");
+    const stBlock = `<div class="fl-tip-sec">账号状态</div>` + (st.risk >= 1 ? "" : `<div class="fl-tip-st dim">没发现风险标记</div>`) + stLines;
     return `<div class="fl-tip-h">@${esc(handle)}</div>` +
-      rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("");
+      rows.map(([k, v]) => `<div class="fl-tip-r"><span>${k}</span><b>${v}</b></div>`).join("") + stBlock;
   }
 
   function placeTip(anchor, html) {

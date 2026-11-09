@@ -13,6 +13,14 @@
     flow: true,           // 推文流速标注(每小时浏览量)
     flowMode: "abs",      // abs 绝对流速 / rel 相对流速(按粉丝量折算)
     cardBtn: true,        // 个人主页上显示「生成名片」按钮
+    replyMark: true,      // 评论区:大 V 回复高亮
+    replyDim: false,      // 评论区:疑似互粉号/低活跃号的回复淡化(默认关)
+    fansBar: true,        // 粉丝列表页顶部显示"已统计 N 位粉丝 / 查看粉丝构成"
+    fansLines: "3000,10000,30000,50000,100000",   // 粉丝构成分档线(粉丝数)
+    replyMark: true,      // 评论区:大 V 的回复高亮
+    replyDim: false,      // 评论区:疑似互粉号/低活跃号的回复淡化(默认关)
+    fansBar: true,        // 粉丝列表页顶部显示"已统计 N 位粉丝 · 查看粉丝构成"
+    fansLines: "3000,10000,30000,50000,100000",   // 粉丝构成的分档线(粉丝数)
     avatarSpin: false,    // 头像环转起来(默认静态,不晃眼)
     avatarFx: true,       // 头像特效:按这条推文的流速,给作者头像加圈和小角色
     flowFx: true,         // 流速动效:🚀 火箭和 ⚡ 光速两档带流光、发光等动画
@@ -62,7 +70,90 @@
       avatar: (u.avatar && u.avatar.image_url) || legacy.profile_image_url_https || u.profile_image_url_https || "",
       followedBy: rp.followed_by === true,   // 对方关注了我
       iFollow: rp.following === true,        // 我关注了对方
+      st: readStatus(u, legacy, rp),         // 账号状态(X 页面数据里自带的标记)
     };
+  }
+
+  // 账号状态:只读 X 页面自己已经带着的字段(受保护、敏感内容提示、认证、恶搞号标注、屏蔽关系……),不发任何请求
+  function readStatus(u, legacy, rp) {
+    const meta = u.profile_metadata || {};
+    const vi = u.verification_info || {};
+    const since = vi.reason && Number(vi.reason.verified_since_msec);
+    const label = u.affiliates_highlighted_label && u.affiliates_highlighted_label.label;
+    const parody = u.parody_commentary_fan_label;
+    const wh = u.withheld_in_countries || legacy.withheld_in_countries;
+    return {
+      prot: (u.privacy && u.privacy.protected === true) || legacy.protected === true,
+      sens: u.possibly_sensitive === true || legacy.possibly_sensitive === true,
+      inter: String(meta.profile_interstitial_type || ""),
+      parody: parody && parody !== "None" ? String(parody) : "",
+      blue: u.is_blue_verified === true,
+      ver: (u.verification && u.verification.verified === true) || legacy.verified === true,
+      idv: vi.is_identity_verified === true,
+      since: since > 0 ? since : 0,
+      wh: Array.isArray(wh) && wh.length ? wh.map(String) : null,
+      blockedBy: rp.blocked_by === true, blocking: rp.blocking === true, muting: rp.muting === true,
+      org: label && label.description ? String(label.description) : "",
+    };
+  }
+
+  // 把账号状态翻成人话。level: 2 = 要留意(红点)、1 = 提醒(黄点)、0 = 只是信息、-1 = 好事(认证)
+  const INTERSTITIAL = {
+    fake_account: "X 给这个账号加了「疑似虚假账号」提示",
+    offensive_profile_content: "X 提示这个账号的资料可能含冒犯内容",
+    timeout: "这个账号目前被 X 临时限制",
+    sensitive_media: "X 提示这个账号可能含敏感媒体",
+  };
+  function statusOf(u) {
+    const s = u && u.st;
+    if (!s) return { items: [], risk: 0 };
+    const items = [];
+    const add = (icon, text, level) => items.push({ icon, text, level });
+    if (s.inter && s.inter !== "none") add("⚠️", INTERSTITIAL[s.inter] || `X 给这个账号加了提示(${s.inter})`, 2);
+    if (s.wh) add("🌐", `在 ${s.wh.length} 个地区被屏蔽(${s.wh.slice(0, 6).join("、")}${s.wh.length > 6 ? "…" : ""})`, 2);
+    if (s.sens) add("🔞", "账号被标记为可能含敏感内容", 1);
+    if (s.blockedBy) add("🚫", "TA 屏蔽了你", 1);
+    if (s.prot) add("🔒", "受保护账号:只有 TA 的关注者看得到推文", 0);
+    if (s.parody) add("🎭", { Parody: "恶搞账号(账号自己声明的)", Commentary: "评论账号(账号自己声明的)", Fan: "粉丝账号(账号自己声明的)" }[s.parody] || `账号标注:${s.parody}`, 0);
+    if (s.blocking) add("⛔", "你屏蔽了 TA", 0);
+    if (s.muting) add("🔇", "你静音了 TA", 0);
+    const ym = s.since ? (() => { const d = new Date(s.since); return ` · 自 ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })() : "";
+    if (s.idv) add("✅", `已通过身份认证${ym}`, -1);
+    else if (s.ver) add("✅", `旧版认证${ym}`, -1);
+    else if (s.blue) add("☑️", `蓝标${ym}(订阅得来的,不等于核实过身份)`, -1);
+    if (s.org) add("🏢", `隶属组织:${s.org}`, 0);
+    return { items, risk: items.reduce((m, i) => Math.max(m, i.level), 0) };
+  }
+
+  // ---- 粉丝构成:按粉丝数分档 ----
+  const FANS_DEFAULT = [3000, 10000, 30000, 50000, 100000];
+  function parseFansLines(s) {
+    const a = String(s || "").split(/[,\s，、]+/).map((x) => Number(x.replace(/[万w]$/i, (m) => "0000"))).filter((x) => x > 0);
+    const u = [...new Set(a)].sort((x, y) => x - y);
+    return u.length ? u : FANS_DEFAULT;
+  }
+  function fmtLine(n) { return n >= 10000 ? String(n / 10000).replace(/\.0$/, "") + "万" : String(n); }
+  function fansBandNames(lines) {
+    const out = [`< ${fmtLine(lines[0])}`];
+    for (let i = 0; i < lines.length - 1; i++) out.push(`${fmtLine(lines[i])} – ${fmtLine(lines[i + 1])}`);
+    out.push(`≥ ${fmtLine(lines[lines.length - 1])}`);
+    return out;
+  }
+  // rows: [[followers, following, createdMs], ...]
+  function fansSummary(rows, lines, now) {
+    const counts = new Array(lines.length + 1).fill(0);
+    let farm = 0, fresh = 0;
+    for (const r of rows) {
+      let i = 0;
+      while (i < lines.length && r[0] >= lines[i]) i++;
+      counts[i]++;
+      const ratio = r[1] > 0 ? r[0] / r[1] : r[0] > 0 ? 99 : 1;
+      if (r[1] >= 1000 && ratio > 0.8 && ratio < 1.25 && r[0] < 5000) farm++;
+      if (r[2] && (now - r[2]) / 86400000 < 90) fresh++;
+    }
+    const n = rows.length;
+    const ge = (x) => rows.reduce((c, r) => c + (r[0] >= x ? 1 : 0), 0);
+    return { n, counts, names: fansBandNames(lines), farm, fresh, ge3k: ge(3000), ge10k: ge(10000), ge30k: ge(30000) };
   }
 
   function readTweet(t, author) {
@@ -357,7 +448,7 @@
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews };
+  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

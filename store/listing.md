@@ -20,6 +20,9 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 • 推文流速:标出每条推文每分钟被看多少次,萌芽 / 起风 / 涌浪 / 沸腾 / 喷发 五档(如 🔥 沸腾 17/分),和账号粉丝多少无关,带 ↗↘ 升温降温趋势;鼠标放上去看累计浏览、发布多久,以及比这位作者平时快几倍
 • 头像流速环:作者头像按这条推文的流速加一圈环,每一档一个造型(默认静态,不晃眼;设置里可以让它转起来)
 • 内容方向标签:按账号简介和刷到的推文,标出这个博主主要做什么(AI编程、智能体、AI视频、AI设计、出海变现、投资……),每个方向一种颜色,词典可自定义
+• 账号状态:鼠标放在徽标上,看这个账号有没有受保护、风险提示、认证类型等标记(只读页面自带数据)
+• 评论区标记:大 V 的回复高亮,低质量回复可选淡化
+• 粉丝构成:在"关注者"列表页统计粉丝里有多少人 3000 粉以上、1 万以上等,可导出 CSV(只统计你滚动加载过的,数据只存本地)
 • 账号名片:在个人主页一键生成带头像、主页地址和"粉丝质量指数"的图片,三种风格,可下载或复制后直接发到 X
 • 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数
 • 质量标签:互关 / 关注了你 / 大V / 高互动 / 低活跃 / 疑似互粉号 / 新号 / 老号
@@ -45,6 +48,9 @@ FEATURES
 • Post velocity: views per minute, in five tiers (Sprout / Breeze / Surge / Boil / Eruption) with the number and an up/down trend, independent of how many followers the author has; hover for total views, post age and how it compares with the author's usual posts
 • Avatar velocity ring: a ring around the author's avatar, one look per tier (static by default; optional spinning in settings)
 • Topic tags: guesses what a creator mainly posts about from their bio and the posts you have seen (AI coding, agents, AI video, AI design, indie business, investing...), color-coded, with a custom dictionary
+• Account status: hover a badge to see flags the page already carries (protected, risk notice, verification type...)
+• Reply markers: highlight replies from big accounts, optionally dim low-quality ones
+• Follower composition: on a Followers list, count how many followers have 3k+, 10k+ followers etc.; export CSV (only what you scrolled into view; stored locally)
 • Account card: one click on a profile creates an image with the avatar, profile link and a "follower quality index"; three styles; download or copy it
 • Follower count badge in the timeline, following lists and follower lists
 • Quality tags: mutual / follows you / big account / high engagement / low activity / suspected follow-for-follow / new / veteran

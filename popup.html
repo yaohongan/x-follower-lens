@@ -96,6 +96,15 @@
     </section>
 
     <section>
+      <h2>评论区与粉丝</h2>
+      <label class="row"><span>评论区高亮大 V<small>帖子详情页里,大 V 的回复左边加一条金色竖线</small></span><span class="sw"><input type="checkbox" data-key="replyMark"><i></i></span></label>
+      <label class="row"><span>评论区淡化低质量回复<small>疑似互粉号、低活跃号的回复变淡,鼠标移上去恢复(默认关)</small></span><span class="sw"><input type="checkbox" data-key="replyDim"><i></i></span></label>
+      <label class="row"><span>粉丝列表统计条<small>打开某人的"关注者"页时,顶部显示已统计多少位粉丝,可查看粉丝构成</small></span><span class="sw"><input type="checkbox" data-key="fansBar"><i></i></span></label>
+      <div class="row nohover"><span>粉丝构成分档线<small>按粉丝数分档,用逗号隔开,支持"万":3000,10000,3万,5万,10万</small></span></div>
+      <input id="fansLines" type="text" spellcheck="false" style="width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 9px;border:1px solid var(--line, #d0d7de);border-radius:8px;font:13px system-ui;background:transparent;color:inherit">
+    </section>
+
+    <section>
       <h2>高级</h2>
       <label class="row"><span>显示调试条<small>页面左下角,排查问题用</small></span><span class="sw"><input type="checkbox" data-key="debug"><i></i></span></label>
       <div class="row nohover"><span>位置诊断<small>开了调试条后,流速标对不齐时会自动记下当时的页面结构(只存在本地)。复制后发给开发者</small></span><button id="copyDiag" type="button">复制诊断</button></div>

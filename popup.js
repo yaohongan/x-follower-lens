@@ -4,7 +4,7 @@
   const DOM_KEY = "fl_dom";
   const DEFAULTS = {
     enabled: true, showRatio: false, tierColors: true, hoverCard: true,
-    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
+    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, replyMark: true, replyDim: false, fansBar: true, fansLines: "3000,10000,30000,50000,100000", cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
     customDomains: "",
     tags: { domain: true, relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
   };
@@ -21,6 +21,8 @@
     document.querySelectorAll("input[data-tag]").forEach((el) => { el.checked = !!settings.tags[el.dataset.tag]; });
     const ta = document.getElementById("customDomains");
     if (document.activeElement !== ta) ta.value = settings.customDomains || "";
+    const fl = document.getElementById("fansLines");
+    if (document.activeElement !== fl) fl.value = settings.fansLines || "";
     document.getElementById("panel").classList.toggle("off", !settings.enabled);
   }
 
@@ -48,6 +50,11 @@
   });
 
   let taTimer = null;
+  document.getElementById("fansLines").addEventListener("input", (e) => {
+    clearTimeout(taTimer);
+    taTimer = setTimeout(() => { if (settings) { settings.fansLines = e.target.value; save(); } }, 400);
+  });
+
   document.getElementById("customDomains").addEventListener("input", (e) => {
     clearTimeout(taTimer);
     taTimer = setTimeout(() => { if (settings) { settings.customDomains = e.target.value; save(); } }, 400);
