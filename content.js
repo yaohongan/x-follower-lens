@@ -695,7 +695,7 @@
   }
   // 名片入口:一个小图标,放在个人主页头部右侧那排圆形按钮(更多、私信、编辑资料)的最左边,不占新的一行。
   // 找不到那排按钮(X 改版)时,退回放在用户名下面,仍然只是一个小图标
-  const CARD_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M5.8 16.2c.7-1.5 1.9-2.2 3.2-2.2s2.5.7 3.2 2.2"/><path d="M14.5 10h3.5M14.5 14h2.5"/></svg>';
+  const CARD_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M5.8 16.2c.7-1.5 1.9-2.2 3.2-2.2s2.5.7 3.2 2.2"/><path d="M14.5 10h3.5M14.5 14h2.5"/></svg>';
   function ensureCardBtn() {
     const old = document.querySelector(".fl-card-btn");
     const handle = settings.cardBtn ? profileHandle() : null;
@@ -708,11 +708,25 @@
     const b = document.createElement("button");
     b.type = "button"; b.className = "fl-card-btn" + (row ? " in-row" : ""); b.dataset.h = handle; b.setAttribute("aria-label", "生成账号名片");
     b.innerHTML = CARD_ICON;
-    b.style.color = getComputedStyle(document.body).color;
     b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hideTip(); openCard(handle); });
     b.addEventListener("mouseenter", () => placeTip(b, '<div class="fl-tip-h">🔍 生成账号名片</div><div class="fl-tip-n">一键生成这个账号的体检卡,可下载或复制</div>'));
     b.addEventListener("mouseleave", hideTip);
-    if (row) row.insertBefore(b, row.firstElementChild); else un.insertAdjacentElement("afterend", b);
+    if (row) {
+      row.insertBefore(b, row.firstElementChild);
+      alignCardBtn(b, act);
+      setTimeout(() => alignCardBtn(b, act), 800);
+      setTimeout(() => alignCardBtn(b, act), 2500);
+    } else un.insertAdjacentElement("afterend", b);
+  }
+  // X 这一排按钮是底对齐(align-items:flex-end),每个按钮自带 margin-bottom:12px 才显得居中。
+  // 照抄旁边按钮的上下外边距,再量一次中心,差多少补多少
+  function alignCardBtn(b, act) {
+    if (!b.isConnected || !act.isConnected) return;
+    const cs = getComputedStyle(act);
+    b.style.marginTop = cs.marginTop; b.style.marginBottom = cs.marginBottom;
+    const ra = act.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const dy = Math.round(ra.top + ra.height / 2 - (rb.top + rb.height / 2));
+    if (Math.abs(dy) > 1 && Math.abs(dy) <= 24) { b.style.position = "relative"; b.style.top = `${(parseFloat(b.style.top) || 0) + dy}px`; }
   }
 
   function cardData(handle, avatar) {
