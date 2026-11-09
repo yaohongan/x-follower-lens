@@ -4,7 +4,7 @@
   const HIST_KEY = "fl_hist";
   const DOM_KEY = "fl_dom";
   const FANS_KEY = "fl_fans";
-  const FANS_MAX_ROWS = 20000, FANS_MAX_OWNERS = 5;
+  const FANS_MAX_ROWS = 20000, FANS_MAX_OWNERS = 3;
   const HIST_MAX_USERS = 3000;
   const HIST_MAX_POINTS = 24;
   const HIST_MIN_GAP = 6 * 3600e3;
