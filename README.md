@@ -157,7 +157,7 @@ Andy L ✓ @AndyL5cc · 1小时  [9284 粉丝]
 
 ## 安装
 
-目前没有上架 Chrome 应用商店,用"加载已解压的扩展程序"安装:
+如果无法从 Chrome 应用商店安装,可以直接用源码安装。扩展是原生 JavaScript,不需要 npm、API Key 或编译:
 
 1. 下载本仓库(绿色 Code 按钮 → Download ZIP),解压。
 2. 在 Chrome 地址栏打开 `chrome://extensions`。
@@ -166,6 +166,29 @@ Andy L ✓ @AndyL5cc · 1小时  [9284 粉丝]
 5. 打开或刷新 x.com(`Cmd+Shift+R` / `Ctrl+Shift+R` 强制刷新)。
 
 如果之前装过旧版,在扩展页面点它的刷新按钮,并强制刷新 x.com。
+
+### Arc 安装
+
+1. 在要使用 X 的 Arc 配置文件/空间中打开 `arc://extensions`(也可输入 `chrome://extensions`)。
+2. 打开**开发者模式**,点**加载未打包的扩展程序**,选择本仓库根目录,也就是包含 `manifest.json` 的文件夹。不要选择 `dist`、ZIP 文件或 ZIP 外层目录。
+3. 打开一个新的 X 标签页,或刷新已经打开的 X 页面。扩展必须在页面请求数据前加载。
+4. 在 Arc 菜单栏 **Extensions → 粉丝透镜 Follower Lens** 打开设置。可临时开启"显示调试条",确认数据包、用户、已显示的数量。
+
+保留加载的文件夹,不要在安装后移动或删除它。更新源码后,在扩展管理页点重新加载,再刷新 X。不同 Arc 配置文件的扩展互相独立,如果 X 页面没有效果,先检查是否装在同一个配置文件里。
+
+源码安装只绕过商店分发步骤,不会关闭浏览器安全检查、增加扩展权限或修复商店本身的网络/账号问题。不需要把扩展打包成 CRX。
+
+### 生成安装 ZIP
+
+用 Python 3.9+ 执行(只使用标准库):
+
+```sh
+python3 scripts/package_extension.py
+python3 -m unittest discover -s tests -p 'test_*.py'
+node tests/check_syntax.js
+```
+
+脚本根据 `manifest.json` 的当前版本生成 `dist/x-follower-lens-<版本>.zip`,只包含运行文件、许可证和隐私说明,不包含测试、商店截图或 Git 数据。解压 ZIP 到固定目录,再按上面的步骤加载解压后的文件夹。仓库中已有的旧版 ZIP 不代表当前源码版本。
 
 ## 使用
 
@@ -227,7 +250,7 @@ X 的网页自己会向服务器请求数据,这些响应里本来就包含用�
 ## 已知限制
 
 - 依赖 X 网页内部的数据结构和页面元素。X 改版后可能失效,修复通常只需要改 `parse.js`(数据字段)或 `content.js`(页面位置)。
-- 目前只支持桌面版 Chrome(及基于 Chromium 的浏览器,如 Edge)。
+- 目前只支持桌面版 Chrome 及基于 Chromium 的浏览器(如 Edge、Arc),需要 Chromium 111 或更新版本。Arc 的源码安装步骤见上文。
 - 粉丝数变化只能从你**第一次刷到**这个账号开始记录,不会有更早的历史。
 
 ## 后续计划
