@@ -129,7 +129,8 @@
       for (const [o, v] of owners) obj[o] = { ts: v.ts, rows: Object.fromEntries(v.rows) };
       out[FOLLOWS_KEY] = obj;
     }
-    if (storage && Object.keys(out).length) { try { storage.set(out); } catch (_) {} }
+    // 每个键单独存:chrome.storage 有总量上限(约 10MB),一个键存不进去不能连累其它键(比如历史记录)
+    if (storage) for (const k of Object.keys(out)) { try { storage.set({ [k]: out[k] }, () => void chrome.runtime.lastError); } catch (_) {} }
   }
   // 平时 20 秒才存一次(整份历史序列化不小,滚动时别频繁存);页面切到后台或关闭时立刻存,不丢数据
   function scheduleSave() {
@@ -196,7 +197,7 @@
       tweetInfo.set(t.id, { views: t.views, createdAt: t.createdAt, author: t.author, obs });
       let ai = authorTweets.get(t.author);
       if (!ai) authorTweets.set(t.author, (ai = new Map()));
-      ai.set(t.id, { id: t.id, views: t.views, createdAt: t.createdAt, inter: t.interactions, text: t.text ? t.text.slice(0, 48) : "" });
+      ai.set(t.id, { id: t.id, views: t.views, createdAt: t.createdAt, inter: t.interactions, text: t.text ? t.text.replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim().slice(0, 48) : "" });
       if (tweetSeen.has(t.id)) continue;
       tweetSeen.add(t.id);
       if (t.text && settings.tags.domain) {
@@ -214,6 +215,18 @@
       stats.set(t.author, s);
     }
     if (histDirty || domDirty) scheduleSave();
+    pruneMemory();
+  }
+
+  // 刷一整天 X 也不能让内存一直涨:各个表超过上限就丢最老的(Map 按插入顺序)
+  function pruneMemory() {
+    const cap = (m, max, keep) => { if (m.size > max) { let n = m.size - keep; for (const k of m.keys()) { if (n-- <= 0) break; m.delete(k); } } };
+    cap(tweetInfo, 30000, 20000);
+    cap(users, 30000, 20000);
+    cap(stats, 30000, 20000);
+    if (tweetSeen.size > 60000) tweetSeen.clear();
+    cap(authorTweets, 5000, 4000);
+    for (const ai of authorTweets.values()) cap(ai, 600, 400);
   }
 
   // ---------- 粉丝构成:边看粉丝列表边记 ----------
@@ -879,6 +892,8 @@
     if (t.textContent !== text) t.textContent = text;
   }
 
+  // Esc 关面板:全局只挂一次(以前每打开一次面板挂一个,用按钮关掉时不会摘掉,越攒越多)
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.getElementById("fl-fans-modal")) closeFans(); });
   function closeFans() { const m = document.getElementById("fl-fans-modal"); if (m) m.remove(); }
   function openFans(owner) {
     closeFans();
@@ -928,7 +943,6 @@
     box.append(foot);
     modal.append(box);
     modal.addEventListener("click", (e) => { if (e.target === modal) closeFans(); });
-    document.addEventListener("keydown", function esc1(e) { if (e.key === "Escape") { closeFans(); document.removeEventListener("keydown", esc1); } });
     document.documentElement.append(modal);
   }
   // ---------- 关注列表分析 ----------
@@ -961,7 +975,11 @@
     if (t.textContent !== text) t.textContent = text;
   }
 
-  const csvCell = (v) => { const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const csvCell = (v) => {
+    let s = String(v);
+    if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s;   // 推文开头是 = + - @ 时,Excel 会当公式执行;加个单引号让它只是文字
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
   function downloadCsv(name, lines) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["﻿" + lines.join("\n")], { type: "text/csv" }));
@@ -975,7 +993,6 @@
     box.append(h("div", "fl-fans-h", title));
     modal.append(box);
     modal.addEventListener("click", (e) => { if (e.target === modal) closeFans(); });
-    document.addEventListener("keydown", function esc1(e) { if (e.key === "Escape") { closeFans(); document.removeEventListener("keydown", esc1); } });
     document.documentElement.append(modal);
     return { box, h };
   }
@@ -1016,8 +1033,11 @@
     const old = document.querySelector(".fl-rev-btn");
     const handle = settings.reviewBtn ? profileHandle() : null;
     const card = handle && document.querySelector(".fl-card-btn.in-row");
-    if (!card || !users.has(handle)) { if (old) old.remove(); return; }
-    if (old && old.dataset.h === handle && old.isConnected && old.previousElementSibling === card) return;
+    const act = handle && document.querySelector('[data-testid="userActions"], [data-testid="editProfileButton"]');
+    const row = act && act.parentElement && act.parentElement.getBoundingClientRect().height ? act.parentElement : null;
+    // 名片图标开着就挨着它放;名片图标被关掉了,也要能单独出现在那排按钮的最左边
+    if (!handle || !users.has(handle) || !(card || row)) { if (old) old.remove(); return; }
+    if (old && old.dataset.h === handle && old.isConnected && (card ? old.previousElementSibling === card : row.firstElementChild === old)) return;
     if (old) old.remove();
     const b = document.createElement("button");
     b.type = "button"; b.className = "fl-rev-btn in-row"; b.dataset.h = handle; b.setAttribute("aria-label", "推文复盘");
@@ -1025,8 +1045,7 @@
     b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); hideTip(); openReview(handle); });
     b.addEventListener("mouseenter", () => placeTip(b, '<div class="fl-tip-h">📈 推文复盘</div><div class="fl-tip-n">你刷到过的这个账号的推文:哪几条最好、什么时段发得最好</div>'));
     b.addEventListener("mouseleave", hideTip);
-    card.insertAdjacentElement("afterend", b);
-    const act = document.querySelector('[data-testid="userActions"], [data-testid="editProfileButton"]');
+    if (card) card.insertAdjacentElement("afterend", b); else row.insertBefore(b, row.firstElementChild);
     if (act) { alignCardBtn(b, act); setTimeout(() => alignCardBtn(b, act), 800); setTimeout(() => alignCardBtn(b, act), 2500); }
   }
 
@@ -1126,23 +1145,32 @@
     };
   }
 
-  function loadAvatar(handle) {
+  // 头像:大图(400x400)在 X 的图片服务器上第一次请求要现场缩放,有时要好几秒。
+  // 所以:先等大图 3.5 秒;还没到就先用页面上已经显示着的小图(浏览器里已缓存);大图后面到了,再通过 onBetter 换上去重画
+  function imgLoad(src, ms) {
     return new Promise((resolve) => {
-      const u = users.get(handle);
-      let src = u && u.avatar;
-      if (!src) {   // 接口数据里没有:退回页面上的头像(用户名大小写不敏感地找)
-        const cont = [...document.querySelectorAll('[data-testid^="UserAvatar-Container-"]')].find((e) => e.dataset.testid.slice(20).toLowerCase() === handle);
-        const img0 = (cont && cont.querySelector("img")) || document.querySelector('a[href$="/photo"] img');
-        src = img0 && img0.src;
-      }
-      src = src && src.replace(/_(normal|bigger|200x200|reasonably_small|mini)(\.[a-z]+)$/i, "_400x400$2");
       if (!src) return resolve(null);
       const img = new Image(); img.crossOrigin = "anonymous";
-      const t = setTimeout(() => resolve(null), 6000);
+      const t = setTimeout(() => resolve(null), ms);
       img.onload = () => { clearTimeout(t); resolve(img); };
       img.onerror = () => { clearTimeout(t); resolve(null); };
       img.src = src;
     });
+  }
+  async function loadAvatar(handle, onBetter) {
+    const u = users.get(handle);
+    const cont = [...document.querySelectorAll('[data-testid^="UserAvatar-Container-"]')].find((e) => e.dataset.testid.slice(21).toLowerCase() === handle);
+    const img0 = (cont && cont.querySelector("img")) || document.querySelector('a[href$="/photo"] img');
+    const small = (img0 && img0.src) || (u && u.avatar) || "";
+    const big = small && small.replace(/_(normal|bigger|200x200|reasonably_small|mini|x96)(\.[a-z]+)$/i, "_400x400$2");
+    const bigSrc = (u && u.avatar && u.avatar.replace(/_(normal|bigger|200x200|reasonably_small|mini|x96)(\.[a-z]+)$/i, "_400x400$2")) || big;
+    if (!bigSrc) return null;
+    const bigP = imgLoad(bigSrc, 20000);
+    const first = await Promise.race([bigP, new Promise((r) => setTimeout(() => r(null), 3500))]);
+    if (first) return first;
+    const fallback = small && small !== bigSrc ? await imgLoad(small, 3000) : null;
+    if (fallback) { bigP.then((b) => { if (b && onBetter) onBetter(b); }); return fallback; }
+    return bigP;   // 小图也没有:继续等大图(最多 20 秒)
   }
 
   function closeCard() { const m = document.getElementById("fl-card-modal"); if (m) m.remove(); document.removeEventListener("keydown", onCardKey, true); }
@@ -1157,7 +1185,8 @@
     document.addEventListener("keydown", onCardKey, true);
     const cv = m.querySelector("canvas"), msg = m.querySelector(".fl-card-msg");
     msg.textContent = "生成中…";
-    const avatar = await loadAvatar(handle);
+    let upgrade = null;
+    const avatar = await loadAvatar(handle, (b) => { if (upgrade) upgrade(b); });
     if (!users.has(handle) || !m.isConnected) return;
     const cd = cardData(handle, avatar);
     let theme = "bento";
@@ -1171,6 +1200,7 @@
     for (const [k, label] of window.FollowerLensCard.THEMES) { const b = document.createElement("button"); b.dataset.t = k; b.textContent = label; tb.append(b); }
     tb.addEventListener("click", (e) => { const k = e.target.dataset && e.target.dataset.t; if (!k) return; theme = k; try { localStorage.setItem("fl_card_theme", k); } catch (_) {} paint(); });
     paint();
+    upgrade = (b) => { if (!m.isConnected) return; cd.avatar = b; paint(); };   // 大图后到了:换上去重画
     msg.textContent = avatar ? "" : "头像没取到,用首字代替(不影响其它内容)";
     const blob = () => new Promise((res) => cv.toBlob(res, "image/png"));
     m.querySelector(".fl-card-bar").addEventListener("click", async (e) => {

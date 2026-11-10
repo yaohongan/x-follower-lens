@@ -81,6 +81,6 @@
   });
 
   document.getElementById("clearHist").addEventListener("click", () => {
-    chrome.storage.local.remove([HIST_KEY, DOM_KEY], countHist);
+    chrome.storage.local.remove([HIST_KEY, DOM_KEY, "fl_fans", "fl_follows"], countHist);   // 粉丝/关注列表统计也一起清掉
   });
 })();
