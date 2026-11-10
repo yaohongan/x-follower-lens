@@ -276,6 +276,8 @@ article.fl-dimreply:hover { opacity: 1; }
 
 /* ========== 粉丝构成:列表页统计条 + 面板 ========== */
 .fl-fans-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 16px; font: 500 13px/1.4 system-ui, -apple-system, "PingFang SC", sans-serif; color: inherit; border-bottom: 1px solid rgba(128, 128, 128, 0.25); }
+.fl-bar-btns { display: inline-flex; gap: 8px; flex: none; }
+.fl-auto-btn { background: transparent !important; }
 .fl-fans-bar button { flex: none; padding: 4px 12px; border-radius: 999px; border: 1.5px solid rgba(29, 155, 240, 0.65); background: rgba(29, 155, 240, 0.12); color: rgb(29, 155, 240); font: 700 12.5px system-ui; cursor: pointer; }
 .fl-fans-bar button:hover { background: rgba(29, 155, 240, 0.24); }
 #fl-fans-modal { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0, 0, 0, 0.72); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }

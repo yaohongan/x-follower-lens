@@ -865,13 +865,70 @@
   // ---------- 粉丝构成 ----------
   const fmtPct = (x, n) => (n ? (x / n * 100).toFixed(x / n >= 0.1 ? 0 : 1) : "0") + "%";
   function fansTotal(owner) { const u = users.get(owner); return u ? u.followers : 0; }
+  // ---------- 自动加载整份列表 ----------
+  // 做法:自己不发任何请求,只是把页面往下滚到列表最底下,让 X 自己的"加载下一页"一页页触发(和你手动往下滚一模一样),
+  // 数据到了照旧由已有的逻辑记下来。你一动鼠标滚轮/触摸/键盘就立刻停。
+  // 为了对 X 客气:每步间隔 1.2–2 秒;连续 3 次(每次等 6 秒)没有新数据就停(列表到头了,或者 X 暂时限流);一次最多 AUTO_MAX 位。
+  const AUTO_MAX = 5000;
+  const auto = { running: false, kind: "", owner: "", stop: false, msg: "" };
+  const autoLast = new Map();   // owner|kind -> 上一次自动加载结束的时间,避免页面重绘后又自动开始
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function runAuto(kind, owner) {
+    if (auto.running || !owner) return;
+    const store = kind === "fans" ? fans : follows;
+    const ownerOf = kind === "fans" ? fansOwner : followsOwner;
+    const size = () => (store.get(owner) ? store.get(owner).rows.size : 0);
+    const total = () => { const u = users.get(owner); return u ? (kind === "fans" ? u.followers : u.following) : 0; };
+    auto.running = true; auto.kind = kind; auto.owner = owner; auto.stop = false; auto.msg = "";
+    const onUser = (e) => { if (e.isTrusted) { auto.stop = true; auto.msg = "已暂停(你操作了页面)"; } };
+    const evs = ["wheel", "touchstart", "keydown", "mousedown"];
+    for (const ev of evs) window.addEventListener(ev, onUser, true);
+    let stalls = 0, last = size(), finished = false;
+    scheduleRender();
+    try {
+      while (!auto.stop && ownerOf() === owner && size() < AUTO_MAX) {
+        // 直接滚到页面最底(在你的真实页面上量过:对最后一个 UserCell 做 scrollIntoView 没用,X 的列表是虚拟化的,滚到底才会触发加载)
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        await sleep(1200 + Math.random() * 800);
+        let waited = 0;
+        while (size() === last && waited < 6000 && !auto.stop && ownerOf() === owner) { await sleep(400); waited += 400; }
+        if (size() === last) { if (++stalls >= 3) break; } else { stalls = 0; last = size(); }
+        scheduleRender();
+        if (total() && size() >= total() * 0.995) { finished = true; break; }
+      }
+    } finally {
+      for (const ev of evs) window.removeEventListener(ev, onUser, true);
+      auto.running = false;
+      autoLast.set(owner + "|" + kind, Date.now());
+      const n = size(), t = total();
+      if (!auto.msg) {
+        auto.msg = ownerOf() !== owner ? "" : finished || (t && n >= t * 0.97) ? "加载完毕" : size() >= AUTO_MAX ? `已到上限(${AUTO_MAX.toLocaleString()} 位)` : "停住了:列表到头了,或者 X 暂时限流,过一会儿再点一次";
+      }
+      if (ownerOf() === owner && !/暂停/.test(auto.msg)) window.scrollTo(0, 0);
+      scheduleRender();
+    }
+  }
+  const autoBtnLabel = (kind, owner) => (auto.running && auto.kind === kind && auto.owner === owner ? "停止" : "自动加载全部");
+  function wireAutoBtn(bar, kind, owner) {
+    const b = bar.querySelector(".fl-auto-btn");
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (auto.running) { auto.stop = true; auto.msg = "已停止"; } else runAuto(kind, owner); });
+  }
+  function maybeAutoStart(kind, owner, enabled) {
+    if (!enabled || auto.running || !document.querySelector('[data-testid="UserCell"]')) return;
+    if (Date.now() - (autoLast.get(owner + "|" + kind) || 0) < 10 * 60e3) return;   // 刚跑过(或刚被你停掉),别自己又开始
+    autoLast.set(owner + "|" + kind, Date.now());
+    setTimeout(() => { if ((kind === "fans" ? fansOwner() : followsOwner()) === owner) runAuto(kind, owner); }, 800);
+  }
+  const autoStatus = (kind, owner, n, total) => auto.running && auto.kind === kind && auto.owner === owner ? (auto.stop ? "正在停止…" : `⏳ 正在加载…已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""}(动一下鼠标滚轮就停)`) : auto.owner === owner && auto.kind === kind && auto.msg ? auto.msg : "";
+
   function ensureFansBar() {
     const old = document.querySelector(".fl-fans-bar");
     const owner = settings.fansBar && settings.enabled ? fansOwner() : null;
     const tabs = owner && document.querySelector('[data-testid="primaryColumn"] [role="tablist"]');
     if (!tabs) { if (old) old.remove(); return; }
     const rec = fans.get(owner), n = rec ? rec.rows.size : 0, total = fansTotal(owner);
-    const text = n ? `📊 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位粉丝` : "📊 往下滚动粉丝列表,边看边统计粉丝构成";
+    const st = autoStatus("fans", owner, n, total);
+    const text = st && auto.running ? st : (n ? `📊 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位粉丝` : "📊 往下滚动粉丝列表,边看边统计粉丝构成") + (st ? " · " + st : "");
     // X 的标签栏在一个 sticky 的头部里,在里面插东西会被列表盖住。放在这个头部后面,跟着列表一起滚
     let anchor = tabs;
     for (let n = tabs.parentElement, i = 0; n && i < 8 && n.getAttribute("data-testid") !== "primaryColumn"; n = n.parentElement, i++) {
@@ -883,13 +940,20 @@
       bar = document.createElement("div");
       bar.className = "fl-fans-bar"; bar.dataset.o = owner;
       const t = document.createElement("span"); t.className = "fl-fans-t";
+      const g = document.createElement("span"); g.className = "fl-bar-btns";
+      const ab = document.createElement("button"); ab.type = "button"; ab.className = "fl-auto-btn";
       const b = document.createElement("button"); b.type = "button"; b.textContent = "查看粉丝构成";
       b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openFans(owner); });
-      bar.append(t, b);
+      g.append(ab, b);
+      bar.append(t, g);
+      wireAutoBtn(bar, "fans", owner);
       anchor.insertAdjacentElement("afterend", bar);
     }
     const t = bar.firstElementChild;
     if (t.textContent !== text) t.textContent = text;
+    const ab = bar.querySelector(".fl-auto-btn"), lab = autoBtnLabel("fans", owner);
+    if (ab.textContent !== lab) ab.textContent = lab;
+    maybeAutoStart("fans", owner, settings.fansAuto);
   }
 
   // Esc 关面板:全局只挂一次(以前每打开一次面板挂一个,用按钮关掉时不会摘掉,越攒越多)
@@ -906,7 +970,7 @@
     const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
     box.append(h("div", "fl-fans-h", `<b>@${esc(owner)}</b> 的粉丝构成`));
     const cov = total ? Math.min(100, sum.n / total * 100) : null;
-    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。只统计你已经在粉丝列表里滚动加载过的,粉丝越多越不全,多滚几次会更完整。` : "还没有数据。回到粉丝列表往下滚动,粉丝透镜会边看边统计。"));
+    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。只统计已经加载出来的:点列表页顶部的「自动加载全部」可以让它自己往下滚;粉丝越多越不全(自动加载一次最多 5,000 位)。` : "还没有数据。回到粉丝列表往下滚动,粉丝透镜会边看边统计。"));
     if (sum.n) {
       const key = h("div", "fl-fans-key");
       for (const [lab, n] of [["≥ 3000", sum.ge3k], ["≥ 1万", sum.ge10k], ["≥ 3万", sum.ge30k]]) key.append(h("div", "fl-fans-k", `<b>${n.toLocaleString()}</b><span>${lab}</span><i>${fmtPct(n, sum.n)}</i>`));
@@ -958,7 +1022,8 @@
     const tabs = owner && document.querySelector('[data-testid="primaryColumn"] [role="tablist"]');
     if (!tabs) { if (old) old.remove(); return; }
     const rec = follows.get(owner), n = rec ? rec.rows.size : 0, u = users.get(owner), total = u ? u.following : 0;
-    const text = n ? `📋 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位关注的人` : "📋 往下滚动关注列表,边看边统计";
+    const st = autoStatus("follows", owner, n, total);
+    const text = st && auto.running ? st : (n ? `📋 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位关注的人` : "📋 往下滚动关注列表,边看边统计") + (st ? " · " + st : "");
     const anchor = stickyAnchor(tabs);
     let bar = old;
     if (!bar || bar.dataset.o !== owner || bar.previousElementSibling !== anchor) {
@@ -966,13 +1031,20 @@
       bar = document.createElement("div");
       bar.className = "fl-fol-bar"; bar.dataset.o = owner;
       const t = document.createElement("span");
+      const g = document.createElement("span"); g.className = "fl-bar-btns";
+      const ab = document.createElement("button"); ab.type = "button"; ab.className = "fl-auto-btn";
       const b = document.createElement("button"); b.type = "button"; b.textContent = "关注分析";
       b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); openFollows(owner); });
-      bar.append(t, b);
+      g.append(ab, b);
+      bar.append(t, g);
+      wireAutoBtn(bar, "follows", owner);
       anchor.insertAdjacentElement("afterend", bar);
     }
     const t = bar.firstElementChild;
     if (t.textContent !== text) t.textContent = text;
+    const ab = bar.querySelector(".fl-auto-btn"), lab = autoBtnLabel("follows", owner);
+    if (ab.textContent !== lab) ab.textContent = lab;
+    maybeAutoStart("follows", owner, settings.followsAuto);
   }
 
   const csvCell = (v) => {
@@ -1238,7 +1310,7 @@
       else { near.delete(e.target); if (!e.target.isConnected) { io.unobserve(e.target); ioVis.unobserve(e.target); } }
     }
     if (entered) scheduleRender();
-  }, { rootMargin: "600px 0px 600px 0px" });
+  }, { rootMargin: "600px 600px 600px 600px" });   // 左右也留 600px:X Pro 是多栏横向排列,刚好在屏幕外的栏要提前装饰好
 
   // 第二个观察器:真正在屏幕上的才让动画跑,在屏幕外的(上下 600px 缓冲区里,已装饰好但看不到)暂停动画。
   // 用"暂停"类而不是"运行"类:这个类万一被 X 重绘冲掉,最坏结果只是多转一会儿,不会卡住不动

@@ -53,7 +53,7 @@ with sync_playwright() as p:
     fp.goto("https://x.com/meowner/following"); fp.wait_for_timeout(2500)
     bar=fp.evaluate("(()=>{const b=document.querySelector('.fl-fol-bar');return b?{t:b.innerText.replace(/\\n/g,' | '),after:b.previousElementSibling.id==='sticky'}:null})()")
     check("关注列表页:sticky 头部后面出现「已统计 12 / 12 位关注的人」条",bar and bar["after"] and "已统计 12" in bar["t"] and "/ 12" in bar["t"],bar)
-    fp.click('.fol-bar-dummy') if False else fp.click('.fl-fol-bar button'); fp.wait_for_timeout(500)
+    fp.click('.fol-bar-dummy') if False else fp.click('.fl-fol-bar button:not(.fl-auto-btn)'); fp.wait_for_timeout(500)
     chips=fp.evaluate("[...document.querySelectorAll('.fl-fol-chips button')].map(b=>b.textContent)")
     check("筛选按钮带人数:全部12 / 没关注你 6 / 疑似互粉号 2 / 新号 2 / ≥1万粉 4 / <100粉 3",chips==["全部12","没关注你6","疑似互粉号2","新号(<90 天)2","≥ 1 万粉4","< 100 粉3"],chips)
     rows=lambda: fp.evaluate("[...document.querySelectorAll('.fl-fol-list a')].map(a=>a.querySelector('b').textContent)")

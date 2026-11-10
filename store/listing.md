@@ -25,17 +25,18 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 • 新粉丝提醒:通知页里,每位新关注你的人旁边显示粉丝数和标签,大号高亮(只读页面里已有的通知数据)
 • 关注列表分析:在"正在关注"列表页按"没关注你""疑似互粉号""新号"等筛选、排序、导出 CSV(只统计你滚动加载过的,数据只存本地)
 • 推文复盘:个人主页上看这个账号你刷到过的推文——哪几条最好、什么时段发得最好(只用页面里已有的数据)
-• 粉丝构成:在"关注者"列表页统计粉丝里有多少人 3000 粉以上、1 万以上等,可导出 CSV(只统计你滚动加载过的,数据只存本地)
+• 粉丝构成:在"关注者"列表页统计粉丝里有多少人 3000 粉以上、1 万以上等,可导出 CSV;打开列表页会自动往下滚动把列表加载出来(可关闭,你一动滚轮就停,数据只存本地)
 • 账号名片:在个人主页一键生成带头像、主页地址和"粉丝质量指数"的图片,三种风格,可下载或复制后直接发到 X
 • 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数
 • 质量标签:互关 / 关注了你 / 大V / 高互动 / 低活跃 / 疑似互粉号 / 新号 / 老号
 • 悬停详情卡:精确粉丝数、关注数、粉丝/关注比、推文数、注册时间、互动率
 • 粉丝数变化:在你的浏览器本地记录你刷到过的账号,显示"近 7 天涨了多少"
+• 支持 X Pro(pro.x.com)多栏界面
 • 自适应布局:不遮挡时间、订阅按钮;头部太挤时自动换行;设置面板里每个功能都能单独开关
 
 【隐私】
 • 不收集、不上传、不出售任何数据,没有统计和广告代码
-• 只读取 X 网页自己已经收到的数据,不主动发出数据请求;唯一的例外:你点"生成账号名片"时会读取该账号的头像图片(来自 X 自己的图片服务器),只用于在本地画图
+• 只读取 X 网页自己已经收到的数据,不主动发出数据请求(粉丝列表的"自动加载"只是替你往下滚动页面,列表由 X 页面自己加载);唯一的例外:你点"生成账号名片"时会读取该账号的头像图片(来自 X 自己的图片服务器),只用于在本地画图
 • 设置、粉丝数历史,以及你滚动加载过的粉丝/关注列表统计,只保存在你浏览器本地,可随时在设置面板或统计面板里清除
 • 开源:https://github.com/yaohongan/x-follower-lens
 
@@ -56,17 +57,18 @@ FEATURES
 • New-follower highlights: on the Notifications page, each new follower shows follower count and tags; big accounts are highlighted (reads notification data already on the page)
 • Following-list analysis: filter/sort the accounts you follow by "does not follow you", "suspected follow-for-follow", "new account"... and export CSV (only what you scrolled into view; stored locally)
 • Post review: on a profile, see which of the posts you have seen did best and which time of day works best (uses page data only)
-• Follower composition: on a Followers list, count how many followers have 3k+, 10k+ followers etc.; export CSV (only what you scrolled into view; stored locally)
+• Follower composition: on a Followers list, count how many followers have 3k+, 10k+ followers etc.; export CSV; opening the list auto-scrolls it so the page loads everything (can be turned off, stops as soon as you touch the wheel; stored locally)
 • Account card: one click on a profile creates an image with the avatar, profile link and a "follower quality index"; three styles; download or copy it
 • Follower count badge in the timeline, following lists and follower lists
 • Quality tags: mutual / follows you / big account / high engagement / low activity / suspected follow-for-follow / new / veteran
 • Hover card: exact followers, following, ratio, post count, account age, engagement rate
 • Follower change: recorded locally for accounts you browse, shows the last 7 days
+• Works on X Pro (pro.x.com) multi-column view
 • Adaptive layout that avoids covering timestamps and buttons; every feature has its own switch
 
 PRIVACY
 • Collects, uploads and sells nothing. No analytics, ads or trackers.
-• Reads only data the X web page has already received and makes no data requests of its own. The one exception: when you click "create account card", it loads that account's avatar image (from X's own image server) just to draw the card locally.
+• Reads only data the X web page has already received and makes no data requests of its own (the follower-list "auto load" merely scrolls the page; the page itself loads the list). The one exception: when you click "create account card", it loads that account's avatar image (from X's own image server) just to draw the card locally.
 • Settings, follower history and the follower/following list statistics (only what you scrolled into view) stay in your browser and can be cleared at any time.
 • Open source: https://github.com/yaohongan/x-follower-lens
 
@@ -85,7 +87,7 @@ Velocity, tags and the quality index are estimates from public numbers, for refe
 
 **单一用途说明(Single purpose)**
 ```
-在 X(Twitter)网页上显示账号的粉丝数和质量标签,帮助用户判断账号。
+在 X(Twitter、X Pro)网页上显示账号的粉丝数和质量标签,帮助用户判断账号。
 ```
 
 **权限理由(Permission justification)**
@@ -93,7 +95,7 @@ Velocity, tags and the quality index are estimates from public numbers, for refe
 | 项目 | 理由(粘贴) |
 |---|---|
 | storage | 保存用户的设置(各开关、徽标位置),以及用户本地的粉丝数历史记录(用于显示"近 7 天变化")和用户滚动加载过的粉丝/关注列表的几个公开数字(粉丝数、关注数、注册时间,用于粉丝构成与关注列表分析)。数据只保存在本地,不上传,用户可在面板里清除或导出。 |
-| 内容脚本(x.com、twitter.com;含"生成账号名片"时读取头像图片) | 扩展只在 x.com 和 twitter.com 运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数、账号状态标记、通知里的关注类型),并在页面上显示徽标、统计面板和标记。不读取任何其它网站。 |
+| 内容脚本(x.com、twitter.com;含"生成账号名片"时读取头像图片) | 扩展只在 x.com、twitter.com 和 pro.x.com(X Pro)运行。它读取 X 网页自己已经收到的数据(用户名、粉丝数、关注数、注册时间、互动数、账号状态标记、通知里的关注类型),并在页面上显示徽标、统计面板和标记。不读取任何其它网站。 |
 
 > 本扩展没有声明 `host_permissions`、`tabs`、`webRequest` 等权限,所以不需要为它们写理由。
 
