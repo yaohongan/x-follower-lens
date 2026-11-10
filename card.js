@@ -10,9 +10,17 @@
   const ell = (c, text, maxW) => { if (c.measureText(text).width <= maxW) return text; let t = text; while (t.length > 1 && c.measureText(t + "…").width > maxW) t = t.slice(0, -1); return t + "…"; };
   // ================= 新风格:海报 / 便当 / 年度 / 黑金 =================
   const NUM = '"SF Pro Display","Helvetica Neue","Inter","Segoe UI",' + FONT;
-  const SERIF = '"Songti SC","STSong","Noto Serif SC","Source Han Serif SC",Georgia,serif';
+  // 衬线字体:数字必须是"等高数字"(lining figures)。Songti/Georgia 的数字是"老式数字"(有的上冲有的下沉),大数字会和下面的字叠在一起、一排数字高低不齐,
+  // 所以拉丁字母和数字用 Times New Roman(Mac / Windows 都有),中文自动落到宋体
+  const SERIF = '"Times New Roman","Times","Songti SC","STSong","Noto Serif SC","Source Han Serif SC",serif';
   const F = (w, s, fam) => `${w} ${s}px ${fam || FONT}`;
   const spaced = (c, px, fn) => { c.letterSpacing = px + "px"; fn(); c.letterSpacing = "0px"; };
+  // 放得下就原样,放不下先缩字号(到 minSize),还不行再用省略号。返回要画的文字,字体已设好
+  const fitText = (c, text, maxW, weight, size, fam, minSize) => {
+    let s = size; c.font = F(weight, s, fam);
+    while (s > minSize && c.measureText(text).width > maxW) { s -= 1; c.font = F(weight, s, fam); }
+    return ell(c, text, maxW);
+  };
   const ageS = (d) => d.ageText.split(" · ")[1] || d.ageText;
   const grade = (s) => (s >= 80 ? "A" : s >= 60 ? "B" : s >= 40 ? "C" : "D");
   const circleImg = (c, data, x, y, r) => {
@@ -48,11 +56,14 @@
     c.fillStyle = sub; c.font = F(600, 26, NUM); c.fillText("@" + d.handle, 52, 232);
     c.fillStyle = ink; c.font = F(700, 22, NUM); c.fillText(ell(c, "x.com/" + d.handle, 440), 52, 268);
     // 超大指数
-    c.fillStyle = ink; c.font = F(900, 360, NUM); c.textAlign = "left";
+    c.fillStyle = ink; c.textAlign = "left";
+    c.font = F(900, 360, NUM);
+    const w0 = c.measureText(String(sc)).width, size = w0 > 470 ? Math.floor(360 * 470 / w0) : 360;   // 三位数(100)会太宽,压到档位标签,按宽度缩小
+    c.font = F(900, size, NUM);
     const nw = c.measureText(String(sc)).width;
     c.fillText(String(sc), 38, 566);
     c.fillStyle = a1; c.fillRect(52, 592, Math.min(nw, 420), 14);
-    c.fillStyle = ink; c.font = F(800, 34, NUM); c.fillText("/ 100", 52 + nw + 6 > 560 ? 560 : 52 + nw + 6, 566);
+    c.fillStyle = ink; c.font = F(800, 34, NUM); c.fillText("/ 100", Math.min(52 + nw + 6, 560), 566);
     // 档位标签(实心色块)
     c.font = F(900, 40, FONT); const lw = c.measureText(d.score.label).width + 56;
     const lx = W - 52 - lw, ly = 400;
@@ -65,7 +76,7 @@
     cells.forEach(([k, v], i) => {
       const x = 52 + (i % 2) * cw, y = 642 + Math.floor(i / 2) * 108;
       c.textAlign = "left"; c.fillStyle = sub; c.font = F(600, 18, FONT); c.fillText(k, x + (i % 2 ? 26 : 0), y + 36);
-      c.fillStyle = ink; c.font = F(800, 46, NUM); c.fillText(ell(c, String(v), cw - 40), x + (i % 2 ? 26 : 0), y + 90);
+      c.fillStyle = ink; c.fillText(fitText(c, String(v), cw - 40, 800, 46, NUM, 28), x + (i % 2 ? 26 : 0), y + 90);
       if (i % 2 === 0) c.fillRect(x + cw - 1, y + 14, 1.5, 84);
     });
     c.fillStyle = line; c.fillRect(52, 642 + 108, W - 104, 1.5);
@@ -113,14 +124,14 @@
     [["粉丝", d.followers], ["关注", d.following]].forEach(([k, v], i) => {
       const y = y2 + i * (rh + G); tile(rx, y, rw, rh);
       c.fillStyle = sub; c.font = F(600, 20, FONT); c.fillText(k, rx + 30, y + 46);
-      c.fillStyle = ink; c.font = F(800, 58, NUM); c.fillText(ell(c, String(v), rw - 60), rx + 30, y + 118);
+      c.fillStyle = ink; c.fillText(fitText(c, String(v), rw - 60, 800, 58, NUM, 32), rx + 30, y + 118);
     });
     // 三小格
     const y3 = y2 + sh + G, tw3 = (W - 2 * P - 2 * G) / 3, th3 = 128;
     [["粉丝/关注比", d.ratio], ["账号年龄", ageS(d)], ["推文", d.score.parts[3].note]].forEach(([k, v], i) => {
       const x = P + i * (tw3 + G); tile(x, y3, tw3, th3, "#fff");
       c.fillStyle = sub; c.font = F(600, 18, FONT); c.fillText(k, x + 26, y3 + 40);
-      c.fillStyle = ink; c.font = F(800, 34, NUM); c.fillText(ell(c, String(v), tw3 - 44), x + 26, y3 + 92);
+      c.fillStyle = ink; c.fillText(fitText(c, String(v), tw3 - 44, 800, 34, NUM, 20), x + 26, y3 + 92);
     });
     // 得分格
     const y4 = y3 + th3 + G, h4 = 236; tile(P, y4, W - 2 * P, h4);
@@ -177,7 +188,7 @@
     cells.forEach(([k, v], i) => {
       const x = 72 + i * cw;
       c.textAlign = "left"; c.fillStyle = "rgba(247,227,163,0.6)"; c.font = F(600, 16, FONT); c.fillText(k, x + (i ? 14 : 0), 790);
-      c.fillStyle = "#fff"; c.font = F(700, 30, SERIF); c.fillText(ell(c, String(v), cw - 22), x + (i ? 14 : 0), 836);
+      c.fillStyle = "#fff"; c.fillText(fitText(c, String(v), cw - 24, 700, 30, SERIF, 18), x + (i ? 14 : 0), 836);
       if (i) { c.fillStyle = "rgba(201,162,74,0.35)"; c.fillRect(x, 764, 1.2, 84); }
     });
     c.fillStyle = "rgba(201,162,74,0.5)"; c.fillRect(72, 868, W - 144, 1.5);
