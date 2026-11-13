@@ -57,7 +57,14 @@ addEventListener("load",function(){{var x=new XMLHttpRequest();x.open("GET","/i/
     def go(path):
         pg=ctx.new_page(); pg.on("pageerror",lambda e:errs.append(str(e))); pg.goto("https://x.com/"+path); return pg
     BAR="document.querySelector('.fl-fans-bar')?document.querySelector('.fl-fans-bar').innerText.replace(/\\n/g,' '):''"
-    # ---- 1. 默认开:遮罩锁定,滚轮不会打断,加载到底;加载完遮罩消失、回到顶部 ----
+    # ---- 0. 默认关:打开粉丝页不自己滚,不出遮罩;再从弹窗打开开关供后面的测试用 ----
+    pop0=ctx.new_page(); pop0.goto(f"chrome-extension://{eid}/popup.html"); pop0.wait_for_timeout(500)
+    check("弹窗:自动加载默认关",pop0.evaluate("!document.querySelector('input[data-key=fansAuto]').checked"))
+    pg=go("offowner/followers"); pg.wait_for_timeout(3500)
+    check("默认关:打开粉丝页不自己滚、没有遮罩,按钮是「自动加载全部」",pg.evaluate("!document.getElementById('fl-auto-overlay')") and pg.evaluate("document.querySelector('.fl-auto-btn').textContent")=="自动加载全部" and count.get("off",0)<=1,count.get("off"))
+    pg.close(); count["off"]=0
+    pop0.click('input[data-key=fansAuto]'); pop0.wait_for_timeout(400); pop0.close()
+    # ---- 1. 开关打开后:遮罩锁定,滚轮不会打断,加载到底;加载完遮罩消失、回到顶部 ----
     pg=go("soloowner/followers"); t0=time.time()
     pg.wait_for_function("document.getElementById('fl-auto-overlay')",timeout=15000)
     ov=pg.evaluate("document.getElementById('fl-auto-overlay').innerText.replace(/\\n/g,' ')")
@@ -117,7 +124,7 @@ addEventListener("load",function(){{var x=new XMLHttpRequest();x.open("GET","/i/
     pg.keyboard.press("Escape"); pg.close()
     # ---- 7. 关掉开关:不自己滚;「重新完整分析」等 ----
     pop.bring_to_front(); pop.reload(); pop.wait_for_timeout(500)
-    check("弹窗:自动加载默认开、主页图标默认开",pop.evaluate("document.querySelector('input[data-key=fansAuto]').checked&&document.querySelector('input[data-key=fansBtn]').checked"))
+    check("弹窗:自动加载(测试里已打开)、主页图标默认开",pop.evaluate("document.querySelector('input[data-key=fansAuto]').checked&&document.querySelector('input[data-key=fansBtn]').checked"))
     pop.click('input[data-key=fansAuto]'); pop.wait_for_timeout(400)
     pg=go("offowner/followers"); pg.wait_for_timeout(4500)
     txt=pg.evaluate(BAR)

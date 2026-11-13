@@ -1055,7 +1055,7 @@
     const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
     box.append(h("div", "fl-fans-h", `<b>@${esc(owner)}</b> 的粉丝构成`));
     const cov = total ? Math.min(100, sum.n / total * 100) : null;
-    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。${rec && rec.full ? "这是一份完整统计:以后打开粉丝页会自动补上新增的粉丝(已取关的人不会自动扣掉,可点下面的「重新完整分析」)。" : "还没统计完整:到粉丝页点「自动加载全部」,或点主页上的粉丝构成图标。X 对粉丝列表每 15 分钟只给 50 次请求(约 2,500 位),更大的账号一次拿不全。"}` : "还没有数据。点主页上的粉丝构成图标,或到粉丝页点「自动加载全部」。"));
+    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。${rec && rec.full ? "这是一份完整统计:以后在粉丝页点「检查新增」只补新增的粉丝(已取关的人不会自动扣掉,可点下面的「重新完整分析」)。" : "还没统计完整:到粉丝页点「自动加载全部」,或点主页上的粉丝构成图标。X 对粉丝列表每 15 分钟只给 50 次请求(约 2,500 位),更大的账号一次拿不全。"}` : "还没有数据。点主页上的粉丝构成图标,或到粉丝页点「自动加载全部」。"));
     if (sum.n) {
       const vrows = rows.filter(([, r]) => r[4]);
       if (vrows.length) {
