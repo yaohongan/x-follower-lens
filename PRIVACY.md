@@ -20,7 +20,7 @@
 
 ### 它不会做什么
 - 不向任何服务器发送数据,不含任何统计、广告或跟踪代码。
-- 不主动向 X 或其它网站发起数据请求,只读取页面本来就在收发的数据。(粉丝/关注列表的"自动加载全部"只是替你把页面往下滚动,让 X 页面自己把列表一页页加载出来,和你手动往下滚一样;可在设置里关闭,你一动滚轮就停。)**唯一的例外**:你点击个人主页上的「生成账号名片」时,会读取该账号的头像图片(来自 X 自己的图片服务器,和页面上显示的是同一张),只用于在你的浏览器里画这张图,不上传任何东西。名片的下载和复制都在本地完成。
+- 不主动向 X 或其它网站发起数据请求,只读取页面本来就在收发的数据。(粉丝/关注列表的"自动加载全部"只是替你把页面往下滚动,让 X 页面自己把列表一页页加载出来,和你手动往下滚一样;加载期间页面会盖一层遮罩锁定,可随时点"取消"或按 Esc;可在设置里关闭。扩展会读取列表接口响应头里的"剩余请求次数"这几个数字来避免用满限额,不读取任何令牌或 Cookie。)**唯一的例外**:你点击个人主页上的「生成账号名片」时,会读取该账号的头像图片(来自 X 自己的图片服务器,和页面上显示的是同一张),只用于在你的浏览器里画这张图,不上传任何东西。名片的下载和复制都在本地完成。
 - 不读取你的密码、私信、Cookie 或登录凭据。
 - 不使用远程托管的代码,所有代码都在安装包里。
 
@@ -41,7 +41,7 @@
 
 **What it stores.** The following is saved in your browser's local storage (`chrome.storage.local`) and never leaves your device: (1) your settings; (2) a follower-count history for accounts you have browsed (username, follower count, timestamp; capped at 3,000 accounts and 40 data points each) used to show 7-day changes; (3) when you open an account's "Followers" list, a compact record of the followers you have scrolled into view (username, follower count, following count, join date; no bio, avatar or posts; capped at 3 accounts and 20,000 rows each) used for the follower-composition panel; (4) likewise for a "Following" list (username, follower/following counts, join date, whether that account follows you; capped at 3 accounts and 10,000 rows each) used for filtering and sorting. You can clear these or export them as CSV from the panels; exports stay on your computer. The "post review" panel uses only tweet data already on the page and keeps it in page memory only (nothing is written to storage). You can delete it anytime with "Clear history" in the extension popup, or turn history tracking off.
 
-**What it does not do.** It sends no data to any server and contains no analytics, ads, or trackers. It does not make its own network requests; it only reads data the page is already sending and receiving. (The follower/following list "auto load" only scrolls the page for you so that the X page itself loads the list, exactly as if you scrolled by hand; it can be turned off and stops when you touch the wheel.) It does not read passwords, direct messages, cookies, or credentials. It uses no remotely hosted code.
+**What it does not do.** It sends no data to any server and contains no analytics, ads, or trackers. It does not make its own network requests; it only reads data the page is already sending and receiving. (The follower/following list "auto load" only scrolls the page for you so that the X page itself loads the list, exactly as if you scrolled by hand, behind a lock overlay with a Cancel button; it can be turned off. It reads only the numeric rate-limit headers (requests remaining) of the list responses to avoid exhausting the limit, never tokens or cookies.) It does not read passwords, direct messages, cookies, or credentials. It uses no remotely hosted code.
 
 **Permissions.** `storage` (settings and history) and content scripts on `x.com` / `twitter.com`.
 

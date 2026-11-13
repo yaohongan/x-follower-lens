@@ -51,7 +51,7 @@
       const saved = (res && res[DOM_KEY]) || {};
       for (const h in saved) domScores.set(h, { ts: saved[h][0], s: saved[h][1], n: Object.values(saved[h][1]).reduce((a, b) => a + b, 0) });
       const sf = (res && res[FANS_KEY]) || {};
-      for (const o in sf) fans.set(o, { ts: sf[o].ts || 0, rows: new Map(Object.entries(sf[o].rows || {})) });
+      for (const o in sf) fans.set(o, { ts: sf[o].ts || 0, full: !!sf[o].full, vfull: !!sf[o].vfull, rows: new Map(Object.entries(sf[o].rows || {})) });
       const sg = (res && res[FOLLOWS_KEY]) || {};
       for (const o in sg) follows.set(o, { ts: sg[o].ts || 0, rows: new Map(Object.entries(sg[o].rows || {})) });
       applyDebug(); applyHtml();
@@ -119,7 +119,7 @@
       fansDirty = false;
       const owners = [...fans.entries()].sort((a, b) => b[1].ts - a[1].ts).slice(0, FANS_MAX_OWNERS);
       const obj = {};
-      for (const [o, v] of owners) obj[o] = { ts: v.ts, rows: Object.fromEntries(v.rows) };
+      for (const [o, v] of owners) obj[o] = { ts: v.ts, full: v.full ? 1 : 0, vfull: v.vfull ? 1 : 0, rows: Object.fromEntries(v.rows) };
       out[FANS_KEY] = obj;
     }
     if (followsDirty) {
@@ -164,6 +164,7 @@
   window.addEventListener("message", (e) => {
     if (e.source !== window || !e.data || e.data.source !== "follower-lens") return;
     msgCount++;
+    if (e.data.rl) { noteRate(e.data.rl); return; }
     if (!settings) { pending.push({ body: e.data.body, op: e.data.op }); return; }
     enqueue(e.data.body, e.data.op);
   });
@@ -179,7 +180,7 @@
     try { json = JSON.parse(body); } catch (_) { return; }
     const { users: us, tweets } = P.extract(json);
     const now = Date.now();
-    if (op && /^(BlueVerified)?Followers$/.test(op)) captureFans(us, now);
+    if (op && /^(BlueVerified)?Followers$/.test(op)) captureFans(us, now, op);
     else if (op === "Following") captureFollows(us, now);
     else if (op === "NotificationsTimeline") captureNotifs(json);
     for (const u of us) {
@@ -232,18 +233,33 @@
   // ---------- 粉丝构成:边看粉丝列表边记 ----------
   const FANS_PATH = /^\/([A-Za-z0-9_]{1,15})\/(?:followers|verified_followers)\/?$/i;
   function fansOwner() { const m = location.pathname.match(FANS_PATH); return m ? m[1].toLowerCase() : null; }
-  function captureFans(us, now) {
+  // 列表接口的限流信息(每 15 分钟 50 次):op -> { limit, remaining, reset(秒), status, at }
+  const rate = {};
+  let rlCount = 0;
+  function noteRate(rl) { rate[rl.op] = { ...rl, at: Date.now() }; rlCount++; }
+  // 每收到一页列表数据就记一笔:自动加载靠它判断"这一页里有多少是新面孔"
+  const pkt = { count: 0, n: 0, newCount: 0, op: "" };
+  let fansSess = null;   // 这次打开粉丝页的第一页情况:{ key, startSize, firstN, firstNew }
+  function captureFans(us, now, op) {
     const owner = fansOwner();
     if (!owner || !settings.fansBar) return;
     let rec = fans.get(owner);
     if (!rec) fans.set(owner, (rec = { ts: now, rows: new Map() }));
+    const verified = op === "BlueVerifiedFollowers";
+    const startSize = rec.rows.size;
+    let n = 0, fresh = 0;
     for (const u of us) {
       if (u.handle === owner) continue;
-      rec.rows.set(u.handle, [u.followers, u.following, u.createdAt ? new Date(u.createdAt).getTime() || 0 : 0, now]);
+      n++;
+      const old = rec.rows.get(u.handle);
+      if (!old) fresh++;
+      rec.rows.set(u.handle, [u.followers, u.following, u.createdAt ? new Date(u.createdAt).getTime() || 0 : 0, now, (old && old[4]) || verified ? 1 : 0]);
     }
     if (rec.rows.size > FANS_MAX_ROWS) {
       [...rec.rows.entries()].sort((a, b) => a[1][3] - b[1][3]).slice(0, rec.rows.size - FANS_MAX_ROWS).forEach(([h]) => rec.rows.delete(h));
     }
+    if (!fansSess || fansSess.key !== location.pathname) fansSess = { key: location.pathname, startSize, firstN: n, firstNew: fresh };
+    pkt.count++; pkt.n = n; pkt.newCount = fresh; pkt.op = op || "";
     rec.ts = now; fansDirty = true;
     scheduleSave();
   }
@@ -328,6 +344,7 @@
     if (rec.rows.size > FOLLOWS_MAX_ROWS) {
       [...rec.rows.entries()].sort((a, b) => a[1][3] - b[1][3]).slice(0, rec.rows.size - FOLLOWS_MAX_ROWS).forEach(([h]) => rec.rows.delete(h));
     }
+    pkt.count++; pkt.n = us.length; pkt.newCount = 0; pkt.op = "Following";
     rec.ts = now; followsDirty = true;
     scheduleSave();
   }
@@ -866,69 +883,137 @@
   const fmtPct = (x, n) => (n ? (x / n * 100).toFixed(x / n >= 0.1 ? 0 : 1) : "0") + "%";
   function fansTotal(owner) { const u = users.get(owner); return u ? u.followers : 0; }
   // ---------- 自动加载整份列表 ----------
-  // 做法:自己不发任何请求,只是把页面往下滚到列表最底下,让 X 自己的"加载下一页"一页页触发(和你手动往下滚一模一样),
-  // 数据到了照旧由已有的逻辑记下来。你一动鼠标滚轮/触摸/键盘就立刻停。
-  // 为了对 X 客气:每步间隔 1.2–2 秒;连续 3 次(每次等 6 秒)没有新数据就停(列表到头了,或者 X 暂时限流);一次最多 AUTO_MAX 位。
-  const AUTO_MAX = 5000;
-  const auto = { running: false, kind: "", owner: "", stop: false, msg: "" };
-  const autoLast = new Map();   // owner|kind -> 上一次自动加载结束的时间,避免页面重绘后又自动开始
+  // 做法:自己不发任何请求,只是把页面往下滚到最底,让 X 自己的"加载下一页"一页页触发(和你手动往下滚一样),数据到了照旧由已有的逻辑记下来。
+  // 为了不和你抢操作,加载期间整页盖一层遮罩(吞掉点击、滚轮和翻页键),只有"取消"和 Esc 能停。
+  // 额度:X 对列表接口每 15 分钟只给 50 次(每次约 50 位)。页面的响应头会告诉我们还剩几次,用到只剩 RATE_RESERVE 次就停。
+  // 增量:统计完整过一次之后,再打开粉丝页只看最新的一两页——这一页里 90% 以上都是已经统计过的人,就说明没有更多新粉丝了。
+  const AUTO_MAX = 5000, RATE_RESERVE = 1;
+  const auto = { running: false, kind: "", owner: "", stop: false, msg: "", openPanel: false, cancelled: false };
+  const autoLast = new Map();   // owner|kind|verified -> 上一次自动加载结束的时间,避免页面重绘后又自动开始
+  let autoPending = null;       // 主页上的"粉丝构成"图标点了之后:跳到粉丝页要自动开始并在结束后弹面板
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  async function runAuto(kind, owner) {
+  const onVerifiedPage = () => /\/verified_followers\/?$/i.test(location.pathname);
+  const resetMin = (rl) => (rl && rl.reset ? Math.max(1, Math.ceil((rl.reset * 1000 - Date.now()) / 60000)) : 15);
+
+  let overlayEl = null;
+  function showOverlay() {
+    if (overlayEl) return;
+    overlayEl = document.createElement("div"); overlayEl.id = "fl-auto-overlay";
+    overlayEl.innerHTML = '<div class="fl-ao-box"><div class="fl-ao-h"></div><div class="fl-ao-bar"><i></i></div><div class="fl-ao-t"></div><div class="fl-ao-n">加载期间页面已锁定,不用操作。这会用掉本时段的列表请求额度,约 15 分钟后恢复;期间你自己打开粉丝页可能暂时报错。</div><button type="button">取消</button></div>';
+    overlayEl.addEventListener("wheel", (e) => e.preventDefault(), { passive: false });
+    overlayEl.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+    overlayEl.querySelector("button").addEventListener("click", () => { auto.stop = true; auto.cancelled = true; auto.msg = "已取消"; });
+    document.documentElement.append(overlayEl);
+  }
+  function hideOverlay() { if (overlayEl) { overlayEl.remove(); overlayEl = null; } }
+  function updateOverlay(n, total, kind, remaining, limit) {
+    if (!overlayEl) return;
+    const what = kind === "fans" ? (onVerifiedPage() ? "认证粉丝" : "粉丝") : "关注的人";
+    overlayEl.querySelector(".fl-ao-h").textContent = `正在分析${what}…`;
+    overlayEl.querySelector(".fl-ao-t").textContent = `已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位${remaining !== undefined && limit ? ` · 本时段额度已用 ${limit - remaining} / ${limit} 次` : ""}`;
+    overlayEl.querySelector(".fl-ao-bar i").style.width = total ? Math.min(100, n / total * 100) + "%" : "30%";
+  }
+  const SCROLL_KEYS = new Set([" ", "PageDown", "PageUp", "Home", "End", "ArrowDown", "ArrowUp"]);
+
+  async function runAuto(kind, owner, opts) {
     if (auto.running || !owner) return;
     const store = kind === "fans" ? fans : follows;
     const ownerOf = kind === "fans" ? fansOwner : followsOwner;
-    const size = () => (store.get(owner) ? store.get(owner).rows.size : 0);
-    const total = () => { const u = users.get(owner); return u ? (kind === "fans" ? u.followers : u.following) : 0; };
-    auto.running = true; auto.kind = kind; auto.owner = owner; auto.stop = false; auto.msg = "";
-    const onUser = (e) => { if (e.isTrusted) { auto.stop = true; auto.msg = "已暂停(你操作了页面)"; } };
-    const evs = ["wheel", "touchstart", "keydown", "mousedown"];
-    for (const ev of evs) window.addEventListener(ev, onUser, true);
-    let stalls = 0, last = size(), finished = false;
+    const verified = kind === "fans" && onVerifiedPage();
+    const opName = verified ? "BlueVerifiedFollowers" : kind === "fans" ? "Followers" : "Following";
+    const size = () => { const r = store.get(owner); if (!r) return 0; if (!verified) return r.rows.size; let c = 0; for (const v of r.rows.values()) if (v[4]) c++; return c; };
+    const total = () => { if (verified) return 0; const u = users.get(owner); return u ? (kind === "fans" ? u.followers : u.following) : 0; };
+    auto.running = true; auto.kind = kind; auto.owner = owner; auto.stop = false; auto.cancelled = false; auto.msg = ""; auto.openPanel = !!(opts && opts.openPanel);
+    const rec0 = store.get(owner);
+    const startSize = size();
+    const incremental = kind === "fans" && !verified && !!(rec0 && rec0.full) && !!fansSess && fansSess.key === location.pathname && fansSess.startSize > 0;
+    const onKey = (e) => { if (e.key === "Escape") { auto.stop = true; auto.cancelled = true; auto.msg = "已取消"; e.preventDefault(); e.stopPropagation(); } else if (SCROLL_KEYS.has(e.key)) { e.preventDefault(); e.stopPropagation(); } };
+    window.addEventListener("keydown", onKey, true);
+    const showTimer = setTimeout(() => { if (auto.running) { showOverlay(); updateOverlay(size(), total(), kind, rate[opName] && rate[opName].remaining, rate[opName] && rate[opName].limit); } }, 700);
+    let stalls = 0, finished = false, limited = false, upToDate = false;
     scheduleRender();
     try {
-      while (!auto.stop && ownerOf() === owner && size() < AUTO_MAX) {
-        // 直接滚到页面最底(在你的真实页面上量过:对最后一个 UserCell 做 scrollIntoView 没用,X 的列表是虚拟化的,滚到底才会触发加载)
+      // 增量:这次打开的第一页就已经全是老面孔 → 不用滚
+      if (incremental && fansSess.firstN > 0 && fansSess.firstNew / fansSess.firstN < 0.1) upToDate = true;
+      while (!upToDate && !auto.stop && ownerOf() === owner && size() < AUTO_MAX) {
+        const rl = rate[opName];
+        if (rl && Date.now() - rl.at < 180000 && (rl.remaining <= RATE_RESERVE || rl.status === 429)) { limited = true; break; }
+        const c0 = pkt.count, r0 = rlCount;
+        // 直接滚到页面最底(在真实页面上量过:对最后一个 UserCell 做 scrollIntoView 没用,X 的列表是虚拟化的,滚到底才会触发下一页)
         window.scrollTo(0, document.documentElement.scrollHeight);
         await sleep(1200 + Math.random() * 800);
         let waited = 0;
-        while (size() === last && waited < 6000 && !auto.stop && ownerOf() === owner) { await sleep(400); waited += 400; }
-        if (size() === last) { if (++stalls >= 3) break; } else { stalls = 0; last = size(); }
+        while (pkt.count === c0 && rlCount === r0 && waited < 6000 && !auto.stop && ownerOf() === owner) { await sleep(300); waited += 300; }
+        updateOverlay(size(), total(), kind, rate[opName] && rate[opName].remaining, rate[opName] && rate[opName].limit);
         scheduleRender();
+        if (pkt.count === c0) {
+          // 有响应但没有用户数据 = 列表到头了(最后一页是空的);连响应都没有 = 卡住了
+          if (rlCount !== r0) { finished = true; break; }
+          if (++stalls >= 3) break;
+          continue;
+        }
+        stalls = 0;
+        if (incremental && pkt.n > 0 && pkt.newCount / pkt.n < 0.1) { upToDate = true; break; }
+        if (verified && pkt.n <= 3) { finished = true; break; }
         if (total() && size() >= total() * 0.995) { finished = true; break; }
       }
     } finally {
-      for (const ev of evs) window.removeEventListener(ev, onUser, true);
+      clearTimeout(showTimer);
+      window.removeEventListener("keydown", onKey, true);
+      hideOverlay();
       auto.running = false;
-      autoLast.set(owner + "|" + kind, Date.now());
-      const n = size(), t = total();
+      autoLast.set(owner + "|" + kind + "|" + (verified ? "v" : ""), Date.now());
+      const n = size(), t = total(), rl = rate[opName];
+      const base = incremental ? fansSess.startSize : startSize;   // 增量时,"新增"要从打开页面前已存的数量算起(第一页数据在开始前就记下了)
+      const done = finished || upToDate || (t && n >= t * 0.97);
+      const rec = store.get(owner);
+      if (rec && !auto.cancelled && done && kind === "fans") { if (verified) rec.vfull = true; else rec.full = true; fansDirty = true; scheduleSave(); }
       if (!auto.msg) {
-        auto.msg = ownerOf() !== owner ? "" : finished || (t && n >= t * 0.97) ? "加载完毕" : size() >= AUTO_MAX ? `已到上限(${AUTO_MAX.toLocaleString()} 位)` : "停住了:列表到头了,或者 X 暂时限流,过一会儿再点一次";
+        auto.msg = ownerOf() !== owner ? ""
+          : upToDate ? (n - base > 0 ? `已更新,新增 ${(n - base).toLocaleString()} 位` : "已是最新,没有新增")
+          : done ? "加载完毕"
+          : limited ? `已用满本时段额度,约 ${resetMin(rl)} 分钟后恢复(已统计 ${n.toLocaleString()}${t ? ` / ${t.toLocaleString()}` : ""})`
+          : n >= AUTO_MAX ? `已到上限(${AUTO_MAX.toLocaleString()} 位)` : "停住了:列表到头了,或者 X 暂时限流,过一会儿再点一次";
       }
-      if (ownerOf() === owner && !/暂停/.test(auto.msg)) window.scrollTo(0, 0);
+      if (ownerOf() === owner && !auto.cancelled) window.scrollTo(0, 0);
+      if (auto.openPanel && !auto.cancelled && done && kind === "fans") setTimeout(() => { if (fansOwner() === owner) openFans(owner); }, 300);
       scheduleRender();
     }
   }
-  const autoBtnLabel = (kind, owner) => (auto.running && auto.kind === kind && auto.owner === owner ? "停止" : "自动加载全部");
+  const autoBtnLabel = (kind, owner) => {
+    if (auto.running && auto.kind === kind && auto.owner === owner) return "停止";
+    const rec = kind === "fans" ? fans.get(owner) : null;
+    return rec && (onVerifiedPage() ? rec.vfull : rec.full) ? "检查新增" : "自动加载全部";
+  };
   function wireAutoBtn(bar, kind, owner) {
     const b = bar.querySelector(".fl-auto-btn");
-    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (auto.running) { auto.stop = true; auto.msg = "已停止"; } else runAuto(kind, owner); });
+    b.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); if (auto.running) { auto.stop = true; auto.cancelled = true; auto.msg = "已停止"; } else runAuto(kind, owner); });
   }
   function maybeAutoStart(kind, owner, enabled) {
-    if (!enabled || auto.running || !document.querySelector('[data-testid="UserCell"]')) return;
-    if (Date.now() - (autoLast.get(owner + "|" + kind) || 0) < 10 * 60e3) return;   // 刚跑过(或刚被你停掉),别自己又开始
-    autoLast.set(owner + "|" + kind, Date.now());
-    setTimeout(() => { if ((kind === "fans" ? fansOwner() : followsOwner()) === owner) runAuto(kind, owner); }, 800);
+    const verified = kind === "fans" && onVerifiedPage();
+    const forced = autoPending && autoPending.owner === owner && autoPending.kind === kind && Date.now() - autoPending.at < 30000;
+    if ((!enabled && !forced) || auto.running || !document.querySelector('[data-testid="UserCell"]')) return;
+    const key = owner + "|" + kind + "|" + (verified ? "v" : "");
+    if (!forced && Date.now() - (autoLast.get(key) || 0) < 10 * 60e3) return;   // 刚跑过(或刚被你取消),别自己又开始
+    autoLast.set(key, Date.now());
+    const openPanel = !!(forced && autoPending.openPanel);
+    if (forced) autoPending = null;
+    setTimeout(() => { if ((kind === "fans" ? fansOwner() : followsOwner()) === owner) runAuto(kind, owner, { openPanel }); }, 800);
   }
-  const autoStatus = (kind, owner, n, total) => auto.running && auto.kind === kind && auto.owner === owner ? (auto.stop ? "正在停止…" : `⏳ 正在加载…已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""}(动一下鼠标滚轮就停)`) : auto.owner === owner && auto.kind === kind && auto.msg ? auto.msg : "";
+  const autoStatus = (kind, owner, n, total) => auto.running && auto.kind === kind && auto.owner === owner ? (auto.stop ? "正在停止…" : `⏳ 正在加载…已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""}`) : auto.owner === owner && auto.kind === kind && auto.msg ? auto.msg : "";
 
   function ensureFansBar() {
     const old = document.querySelector(".fl-fans-bar");
     const owner = settings.fansBar && settings.enabled ? fansOwner() : null;
     const tabs = owner && document.querySelector('[data-testid="primaryColumn"] [role="tablist"]');
     if (!tabs) { if (old) old.remove(); return; }
-    const rec = fans.get(owner), n = rec ? rec.rows.size : 0, total = fansTotal(owner);
+    const rec = fans.get(owner), vpage = onVerifiedPage();
+    let n = rec ? rec.rows.size : 0;
+    if (vpage && rec) { n = 0; for (const v of rec.rows.values()) if (v[4]) n++; }
+    const total = vpage ? 0 : fansTotal(owner);
     const st = autoStatus("fans", owner, n, total);
-    const text = st && auto.running ? st : (n ? `📊 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位粉丝` : "📊 往下滚动粉丝列表,边看边统计粉丝构成") + (st ? " · " + st : "");
+    const base = vpage ? (n ? `🔷 已统计认证粉丝 ${n.toLocaleString()} 位` : "🔷 这里是认证关注者,点「自动加载全部」统计认证粉丝") : (n ? `📊 已统计 ${n.toLocaleString()}${total ? ` / ${total.toLocaleString()}` : ""} 位粉丝` : "📊 点「自动加载全部」,把整份粉丝列表统计出来");
+    const text = st && auto.running ? st : base + (st ? " · " + st : "");
     // X 的标签栏在一个 sticky 的头部里,在里面插东西会被列表盖住。放在这个头部后面,跟着列表一起滚
     let anchor = tabs;
     for (let n = tabs.parentElement, i = 0; n && i < 8 && n.getAttribute("data-testid") !== "primaryColumn"; n = n.parentElement, i++) {
@@ -970,7 +1055,16 @@
     const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
     box.append(h("div", "fl-fans-h", `<b>@${esc(owner)}</b> 的粉丝构成`));
     const cov = total ? Math.min(100, sum.n / total * 100) : null;
-    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。只统计已经加载出来的:点列表页顶部的「自动加载全部」可以让它自己往下滚;粉丝越多越不全(自动加载一次最多 5,000 位)。` : "还没有数据。回到粉丝列表往下滚动,粉丝透镜会边看边统计。"));
+    box.append(h("div", "fl-fans-cov", sum.n ? `已统计 <b>${sum.n.toLocaleString()}</b>${total ? ` / ${total.toLocaleString()} 位粉丝(${cov.toFixed(cov >= 10 ? 0 : 1)}%)` : " 位粉丝"}。${rec && rec.full ? "这是一份完整统计:以后打开粉丝页会自动补上新增的粉丝(已取关的人不会自动扣掉,可点下面的「重新完整分析」)。" : "还没统计完整:到粉丝页点「自动加载全部」,或点主页上的粉丝构成图标。X 对粉丝列表每 15 分钟只给 50 次请求(约 2,500 位),更大的账号一次拿不全。"}` : "还没有数据。点主页上的粉丝构成图标,或到粉丝页点「自动加载全部」。"));
+    if (sum.n) {
+      const vrows = rows.filter(([, r]) => r[4]);
+      if (vrows.length) {
+        const vv = (x) => vrows.filter(([, r]) => r[0] >= x).length;
+        box.append(h("div", "fl-fans-verified", `🔷 认证粉丝 <b>${vrows.length.toLocaleString()}</b> 位${rec && rec.vfull ? "" : "(还没统计完整)"} · ≥ 3000:<b>${vv(3000)}</b> · ≥ 1 万:<b>${vv(10000)}</b> · ≥ 3 万:<b>${vv(30000)}</b>`));
+      } else {
+        box.append(h("div", "fl-fans-verified dim", "🔷 认证粉丝:还没统计。切到粉丝页的「认证关注者」标签,会自动加载(列表很小,几秒就完)。"));
+      }
+    }
     if (sum.n) {
       const key = h("div", "fl-fans-key");
       for (const [lab, n] of [["≥ 3000", sum.ge3k], ["≥ 1万", sum.ge10k], ["≥ 3万", sum.ge30k]]) key.append(h("div", "fl-fans-k", `<b>${n.toLocaleString()}</b><span>${lab}</span><i>${fmtPct(n, sum.n)}</i>`));
@@ -998,11 +1092,12 @@
     const mk = (txt, fn, cls) => { const b = h("button", cls || "", txt); b.type = "button"; b.addEventListener("click", fn); return b; };
     if (sum.n) {
       foot.append(mk("导出 CSV", () => {
-        const csv = "\ufeffhandle,粉丝数,关注数,注册时间\n" + rows.map(([hd, r]) => `${hd},${r[0]},${r[1]},${r[2] ? new Date(r[2]).toISOString().slice(0, 10) : ""}`).join("\n");
+        const csv = "\ufeffhandle,粉丝数,关注数,注册时间,认证\n" + rows.map(([hd, r]) => `${hd},${r[0]},${r[1]},${r[2] ? new Date(r[2]).toISOString().slice(0, 10) : ""},${r[4] ? "是" : ""}`).join("\n");
         const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = `fans-${owner}.csv`; document.body.append(a); a.click(); a.remove();
       }));
       foot.append(mk("清除这个账号的统计", () => { fans.delete(owner); fansDirty = true; flushSaveNow(); closeFans(); scheduleRender(); }, "ghost"));
     }
+    if (rec && rec.full && fansOwner() === owner && !onVerifiedPage()) foot.append(mk("重新完整分析", () => { rec.full = false; fansDirty = true; flushSaveNow(); closeFans(); runAuto("fans", owner, { openPanel: true }); }, "ghost"));
     foot.append(mk("关闭", closeFans, "ghost"));
     box.append(foot);
     modal.append(box);
@@ -1118,6 +1213,31 @@
     b.addEventListener("mouseenter", () => placeTip(b, '<div class="fl-tip-h">📈 推文复盘</div><div class="fl-tip-n">你刷到过的这个账号的推文:哪几条最好、什么时段发得最好</div>'));
     b.addEventListener("mouseleave", hideTip);
     if (card) card.insertAdjacentElement("afterend", b); else row.insertBefore(b, row.firstElementChild);
+    if (act) { alignCardBtn(b, act); setTimeout(() => alignCardBtn(b, act), 800); setTimeout(() => alignCardBtn(b, act), 2500); }
+  }
+
+  // 主页上的第三个小图标「粉丝构成」:点一下跳到他的粉丝页,自动加载并在结束时弹出面板
+  const FANS_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.6-3 2.7-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><path d="M16 5.2a3 3 0 0 1 0 5.6M18.5 14.6c1.4.7 2.2 2 2.5 4.4"/></svg>';
+  function ensureFansBtn() {
+    const old = document.querySelector(".fl-fansbtn");
+    const handle = settings.fansBtn ? profileHandle() : null;
+    const anchor = handle && (document.querySelector(".fl-rev-btn") || document.querySelector(".fl-card-btn.in-row"));
+    if (!handle || !users.has(handle) || !anchor) { if (old) old.remove(); return; }
+    if (old && old.dataset.h === handle && old.isConnected && old.previousElementSibling === anchor) return;
+    if (old) old.remove();
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "fl-fansbtn in-row"; b.dataset.h = handle; b.setAttribute("aria-label", "粉丝构成");
+    b.innerHTML = FANS_ICON;
+    b.addEventListener("click", (e) => {
+      e.preventDefault(); e.stopPropagation(); hideTip();
+      autoPending = { owner: handle, kind: "fans", openPanel: true, at: Date.now() };
+      const link = document.querySelector(`a[href="/${handle}/followers" i], a[href="/${handle}/verified_followers" i]`);
+      if (link) link.click(); else location.assign(`/${handle}/followers`);
+    });
+    b.addEventListener("mouseenter", () => placeTip(b, '<div class="fl-tip-h">👥 粉丝构成</div><div class="fl-tip-n">自动加载他的粉丝列表,统计 ≥3000、≥1 万粉丝各有多少(需要一分钟左右,期间页面会锁定)</div>'));
+    b.addEventListener("mouseleave", hideTip);
+    anchor.insertAdjacentElement("afterend", b);
+    const act = document.querySelector('[data-testid="userActions"], [data-testid="editProfileButton"]');
     if (act) { alignCardBtn(b, act); setTimeout(() => alignCardBtn(b, act), 800); setTimeout(() => alignCardBtn(b, act), 2500); }
   }
 
@@ -1295,7 +1415,7 @@
     document.querySelectorAll(".fl-badge").forEach((b) => b.remove());
     document.querySelectorAll(".fl-dim").forEach((c) => c.classList.remove("fl-dim"));
     document.querySelectorAll(".fl-vip, .fl-dimreply").forEach((c) => c.classList.remove("fl-vip", "fl-dimreply"));
-    document.querySelectorAll(".fl-fans-bar, .fl-fol-bar, .fl-rev-btn, .fl-notif-row").forEach((n) => n.remove()); closeFans();
+    document.querySelectorAll(".fl-fans-bar, .fl-fol-bar, .fl-rev-btn, .fl-fansbtn, .fl-notif-row").forEach((n) => n.remove()); closeFans();
     document.querySelectorAll(".fl-notif-vip").forEach((c) => c.classList.remove("fl-notif-vip"));
   }
 
@@ -1345,6 +1465,7 @@
     markNotifs();
     ensureCardBtn();
     ensureReviewBtn();
+    ensureFansBtn();
     ensureFansBar();
     ensureFollowsBar();
     updateHud();
@@ -1360,7 +1481,7 @@
   // 只关心推文和用户行的变化。我们自己插入的东西、页面上无关区域的变动(计时器、悬停、视频进度……)一律忽略。
   const REL = 'article, [data-testid="cellInnerDiv"], [data-testid="UserCell"], [data-testid="UserName"]';
   function isOurs(n) { return n.nodeType === 1 && (n.id === "fl-tip" || n.id === "fl-hud" || n.id === "fl-card-modal" || (typeof n.className === "string" && n.className.includes("fl-"))); }
-  const OURS_SEL = ".fl-badge, .fl-notif-row, .fl-fans-bar, .fl-fol-bar, .fl-rev-btn, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
+  const OURS_SEL = ".fl-badge, .fl-notif-row, .fl-fans-bar, .fl-fol-bar, .fl-rev-btn, .fl-fansbtn, #fl-auto-overlay, #fl-fans-modal, .fl-flow, .fl-ring, .fl-ring-badge, .fl-line, .fl-avx, .fl-card-btn, #fl-card-modal, #fl-tip, #fl-hud";   // 明确的类名选择器,比 [class*="fl-"] 快得多
   new MutationObserver((muts) => {
     const t0 = performance.now();
     try { onMutations(muts); } finally { perf.mutMs += performance.now() - t0; perf.mutCalls++; }

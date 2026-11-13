@@ -349,3 +349,21 @@ html.fl-size-xl .fl-flow { font-size: 17px; line-height: 24px; padding: 5px 14px
 .fl-notif-row .fl-tag.rel { display: none; }   /* 通知里本来就是"关注了你",不用再标一次 */
 article.fl-notif-vip { box-shadow: inset 3px 0 0 #f5b301; background: rgba(245, 179, 1, 0.07); }
 .fl-notif-row.vip { box-shadow: inset 3px 0 0 #f5b301; background: rgba(245, 179, 1, 0.07); }
+
+/* ========== 自动加载遮罩 + 主页上的粉丝构成图标 ========== */
+#fl-auto-overlay { position: fixed; inset: 0; z-index: 2147482000; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; cursor: wait; }
+#fl-auto-overlay .fl-ao-box { width: min(420px, 90vw); padding: 24px; border-radius: 18px; background: #15181c; color: #e7e9ea; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 12px; cursor: default; }
+#fl-auto-overlay .fl-ao-h { font-size: 18px; font-weight: 700; }
+#fl-auto-overlay .fl-ao-bar { height: 10px; border-radius: 6px; background: #262c33; overflow: hidden; }
+#fl-auto-overlay .fl-ao-bar i { display: block; height: 100%; width: 5%; border-radius: 6px; background: linear-gradient(90deg, #38bdf8, #8b5cf6); transition: width 0.5s; }
+#fl-auto-overlay .fl-ao-t { font-size: 14px; }
+#fl-auto-overlay .fl-ao-n { font-size: 12.5px; line-height: 1.55; color: #9aa4ae; }
+#fl-auto-overlay button { align-self: flex-end; padding: 7px 18px; border: 0; border-radius: 999px; background: #2b3138; color: #e7e9ea; font: 700 13px system-ui; cursor: pointer; }
+.fl-fansbtn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 36px; height: 36px; padding: 0; margin: 0 8px 0 0; box-sizing: border-box;
+  color: rgb(16, 185, 129); border: 1.5px solid rgba(16, 185, 129, 0.65); border-radius: 999px; background: rgba(16, 185, 129, 0.12); cursor: pointer;
+}
+.fl-fansbtn:hover { background: rgba(16, 185, 129, 0.24); }
+#fl-fans-modal .fl-fans-verified { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: #1f2429; font-size: 13px; line-height: 1.5; }
+#fl-fans-modal .fl-fans-verified b { color: #38bdf8; }
+#fl-fans-modal .fl-fans-verified.dim { color: #9aa4ae; }

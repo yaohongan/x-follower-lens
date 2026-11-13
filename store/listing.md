@@ -25,7 +25,7 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 • 新粉丝提醒:通知页里,每位新关注你的人旁边显示粉丝数和标签,大号高亮(只读页面里已有的通知数据)
 • 关注列表分析:在"正在关注"列表页按"没关注你""疑似互粉号""新号"等筛选、排序、导出 CSV(只统计你滚动加载过的,数据只存本地)
 • 推文复盘:个人主页上看这个账号你刷到过的推文——哪几条最好、什么时段发得最好(只用页面里已有的数据)
-• 粉丝构成:在"关注者"列表页统计粉丝里有多少人 3000 粉以上、1 万以上等,可导出 CSV;打开列表页会自动往下滚动把列表加载出来(可关闭,你一动滚轮就停,数据只存本地)
+• 粉丝构成:统计粉丝里有多少人 3000 粉以上、1 万以上、3 万以上等,还单独统计认证粉丝,可导出 CSV;打开粉丝页(或点主页上的小图标)会自动往下滚动把列表加载出来(加载期间有遮罩和取消按钮,按 X 的限流额度自动控制,统计完整后只增量更新,可关闭,数据只存本地)
 • 账号名片:在个人主页一键生成带头像、主页地址和"粉丝质量指数"的图片,三种风格,可下载或复制后直接发到 X
 • 粉丝数徽标:信息流、关注列表、粉丝列表里,每个账号旁边直接显示粉丝数
 • 质量标签:互关 / 关注了你 / 大V / 高互动 / 低活跃 / 疑似互粉号 / 新号 / 老号
@@ -57,7 +57,7 @@ FEATURES
 • New-follower highlights: on the Notifications page, each new follower shows follower count and tags; big accounts are highlighted (reads notification data already on the page)
 • Following-list analysis: filter/sort the accounts you follow by "does not follow you", "suspected follow-for-follow", "new account"... and export CSV (only what you scrolled into view; stored locally)
 • Post review: on a profile, see which of the posts you have seen did best and which time of day works best (uses page data only)
-• Follower composition: on a Followers list, count how many followers have 3k+, 10k+ followers etc.; export CSV; opening the list auto-scrolls it so the page loads everything (can be turned off, stops as soon as you touch the wheel; stored locally)
+• Follower composition: count how many followers have 3k+, 10k+, 30k+ followers (and verified followers separately); export CSV; opening the list (or clicking a profile icon) auto-scrolls it so the page loads everything, behind a lock overlay with a Cancel button, paced by X's own rate-limit headers, then only incremental updates (can be turned off; stored locally)
 • Account card: one click on a profile creates an image with the avatar, profile link and a "follower quality index"; three styles; download or copy it
 • Follower count badge in the timeline, following lists and follower lists
 • Quality tags: mutual / follows you / big account / high engagement / low activity / suspected follow-for-follow / new / veteran

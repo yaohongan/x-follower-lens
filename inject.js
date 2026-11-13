@@ -17,12 +17,26 @@
     if (relevant(text)) window.postMessage({ source: SOURCE, body: text, op: opOf(url) }, "*");
   };
 
+  // 列表接口(粉丝 / 认证粉丝 / 正在关注)的限流信息:X 每 15 分钟只给 50 次。内容脚本靠它知道还剩几次、什么时候恢复,不会把额度烧光。
+  // 只传四个数字(上限、剩余、恢复时间、状态码)
+  const isListOp = (url) => /\/graphql\/[^/]+\/(?:BlueVerifiedFollowers|Followers|Following)(?:\?|$)/.test(url);
+  const emitRl = (url, status, hdr) => {
+    try {
+      const rem = hdr("x-rate-limit-remaining");
+      if (rem === null || rem === undefined) return;
+      window.postMessage({ source: SOURCE, rl: { op: opOf(url), status, limit: Number(hdr("x-rate-limit-limit")), remaining: Number(rem), reset: Number(hdr("x-rate-limit-reset")) } }, "*");
+    } catch (_) {}
+  };
+
   const origFetch = window.fetch;
   window.fetch = function (...args) {
     const p = origFetch.apply(this, args);               // X 拿到的就是它自己的 Promise,不多等任何东西
     try {
       const url = typeof args[0] === "string" ? args[0] : args[0] && args[0].url;
-      if (wanted(url)) p.then((res) => { try { res.clone().text().then((t) => emit(t, url)).catch(() => {}); } catch (_) {} }, () => {});
+      if (wanted(url)) p.then((res) => {
+        try { res.clone().text().then((t) => emit(t, url)).catch(() => {}); } catch (_) {}
+        if (isListOp(url)) emitRl(url, res.status, (k) => res.headers.get(k));
+      }, () => {});
     } catch (_) {}
     return p;
   };
@@ -32,6 +46,7 @@
     if (wanted(url)) {
       this.addEventListener("load", () => {
         try { emit(this.responseText, url); } catch (_) {}
+        if (isListOp(url)) emitRl(url, this.status, (k) => this.getResponseHeader(k));
       });
     }
     return origOpen.call(this, method, url, ...rest);

@@ -81,12 +81,12 @@ with sync_playwright() as p:
     # 21 位:<3000 = 5+3+2(1500 的互粉号) = 10;3000-1万 = 4;1万-3万 = 3;3万-5万 = 2;5万-10万 = 1;≥10万 = 1;≥3000 = 11、≥1万 = 7、≥3万 = 4
     check("面板:6 档人数对(<3000:10 / 3000–1万:4 / 1万–3万:3 / 3万–5万:2 / 5万–10万:1 / ≥10万:1)",panel and panel["bands"]==["10","4","3","2","1","1"],panel and panel["bands"])
     check("面板:关键数字 ≥3000=11、≥1万=7、≥3万=4",panel and panel["keys"]==["11","7","4"],panel and panel["keys"])
-    check("面板:写明覆盖率和「只统计已经加载出来的」",panel and "只统计已经加载出来的" in panel["t"] and "21 / 21,000" in panel["t"],panel and panel["t"][:160])
+    check("面板:写明覆盖率和「还没统计完整」",panel and "还没统计完整" in panel["t"] and "21 / 21,000" in panel["t"],panel and panel["t"][:160])
     fp.click('.fl-fans-band:nth-child(4)'); fp.wait_for_timeout(300)
     lst=fp.evaluate("[...document.querySelectorAll('.fl-fans-list a')].map(a=>a.textContent)")
     check("点「3万–5万」:列出这一档的 2 位账号(@fan 开头,带粉丝数)",len(lst)==2 and all(x.startswith("@fan") for x in lst),lst)
     fp.click('.fl-fans-foot button.ghost:nth-last-child(2)'); fp.wait_for_timeout(500)
-    check("清除这个账号的统计:面板关闭,统计条回到提示语",fp.evaluate("!document.getElementById('fl-fans-modal')") and "往下滚动" in fp.evaluate("document.querySelector('.fl-fans-bar').innerText"))
+    check("清除这个账号的统计:面板关闭,统计条回到提示语",fp.evaluate("!document.getElementById('fl-fans-modal')") and "自动加载全部" in fp.evaluate("document.querySelector('.fl-fans-bar').innerText"))
     # 分档线自定义
     pop.bring_to_front(); pop.fill('#fansLines','2000,3万'); pop.wait_for_timeout(700)
     fp.bring_to_front(); fp.reload(); fp.wait_for_timeout(2500)
