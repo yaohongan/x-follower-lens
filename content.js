@@ -209,15 +209,17 @@
     if (!/^\/i\/jf\/creators\/original_content_rewards/.test(location.pathname)) return;
     const main = document.querySelector('[data-testid="primaryColumn"]') || document.querySelector("main");
     if (!main) return;
+    // 真实页面上累计数(如 373.1K)是一个单独的 <p>,紧跟在「过去 90 天内…已验证首页时间线曝光」那段说明后面。
+    // 所以不挑标签和字号:取说明之后第一个"整段就是一个数字"的叶子节点;数字要么带 K/M/万,要么 ≥1000;和目标(50 万)相同的跳过。
+    const leaves = [...main.querySelectorAll("*")].filter((el) => !el.children.length);
+    const ai = leaves.findIndex((el) => /90\s*天|90\s*days|已验证首页|home\s*timeline/i.test(el.textContent || ""));
     let best = null;
-    for (const el of main.querySelectorAll("div,span")) {          // 页面上最大的那个数字就是累计曝光(例如 373.1K)
-      if (el.children.length) continue;
-      const tx = (el.textContent || "").trim();
+    for (let i = Math.max(ai + 1, 0); i < leaves.length && !best; i++) {
+      const tx = (leaves[i].textContent || "").trim();
       if (tx.length > 9 || !/\d/.test(tx)) continue;
       const v = P.parseCount(tx);
-      if (v === null) continue;
-      const fs = parseFloat(getComputedStyle(el).fontSize) || 0;
-      if (fs >= 20 && (!best || fs > best.fs)) best = { v, fs };
+      if (v === null || v === 500000 || (v < 1000 && !/[KkMm万wW]$/.test(tx))) continue;
+      best = { v };
     }
     if (!best) return;
     const now = Date.now();

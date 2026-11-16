@@ -7,7 +7,7 @@ EXE=os.environ.get("CHROMIUM")
 ok=True
 def check(n,c,e=""):
     global ok; print(("PASS " if c else "FAIL ")+n,e if not c else ""); ok&=bool(c)
-REW='''<!doctype html><html><body style="margin:0"><div data-testid="primaryColumn" style="width:600px"><div style="font-size:15px"><span>至少有 500 名已验证粉丝</span> <span>过去 90 天,累积至少 50 万次已验证首页时间线曝光</span></div><div style="font-size:15px">500</div><div style="font-size:30px;font-weight:700"><span>373.1K</span></div><div style="font-size:13px">回复不计入曝光</div></div></body></html>'''
+REW='''<!doctype html><html><body style="margin:0"><div data-testid="primaryColumn" style="width:600px"><p style="font-size:15px">至少有 500 名已验证粉丝</p><p style="font-size:15px">过去 90 天内,累积至少 50 万次已验证首页时间线曝光</p><p style="font-size:14px">500</p><p style="font-size:14px">373.1K</p><p style="font-size:14px">回复不计入曝光</p><div><span style="font-size:12px">11.2万 粉丝</span></div></div></body></html>'''
 ANA='''<!doctype html><html><body><a data-testid="AppTabBar_Profile_Link" href="/yihui">个人资料</a><script>addEventListener("load",function(){fetch("/i/api/1.1/flow/timeline.json",{method:"POST",body:"{}"}).then(function(r){return r.text()});fetch("/i/api/graphql/abc123/accountOverviewDailyQuery?variables=%7B%7D").then(function(r){return r.text()})})</script></body></html>'''
 FLOW=json.dumps({"flow_token":"SECRETTOKEN123","subtasks":[{"impressions":[{"date":"2026-11-14","total":128500,"verified":51700}],"note":"x"*200}]})
 def utc_day(back): return (datetime.datetime.utcnow()-datetime.timedelta(days=back)).strftime("%Y-%m-%d")
