@@ -166,6 +166,7 @@
     msgCount++;
     if (e.data.rl) { noteRate(e.data.rl); return; }
     if (e.data.dx) { noteDx(e.data.dx); return; }
+    if (e.data.ao) { noteAO(e.data.ao); return; }
     if (!settings) { pending.push({ body: e.data.body, op: e.data.op }); return; }
     enqueue(e.data.body, e.data.op);
   });
@@ -182,6 +183,21 @@
       arr.push({ url: dx.url, status: dx.status, at: dx.at, page: location.pathname, len: dx.body.length, body });
       while (arr.length > 10 || arr.reduce((s, x) => s + x.body.length, 0) > 500000) arr.shift();
       storage.set({ fl_flowdiag: arr });
+    }).catch(() => {});
+  }
+  // 账号分析页的每日曝光:合并进 fl_daily(按 UTC 日一条,最多 120 天)
+  function noteAO(text) {
+    if (!settings || !settings.enabled || !settings.rewardCard || !storage) return;
+    let days = null;
+    try { days = P.parseOverviewDaily(JSON.parse(text)); } catch (_) {}
+    if (!days) return;
+    storage.get("fl_daily").then((o) => {
+      const rec = o.fl_daily || { days: {} };
+      rec.days = Object.assign(rec.days || {}, days);
+      rec.at = Date.now();
+      const keys = Object.keys(rec.days).sort();
+      while (keys.length > 120) delete rec.days[keys.shift()];
+      storage.set({ fl_daily: rec });
     }).catch(() => {});
   }
   let rewardLast = { v: -1, at: 0 }, meLast = "";
@@ -214,7 +230,8 @@
       const rec = o.fl_reward || { days: {} };
       rec.v = best.v; rec.at = now; rec.target = target;
       rec.days = rec.days || {};
-      rec.days[new Date(now).toISOString().slice(0, 10)] = { v: best.v, at: now };
+      const dk = P.rewardDayFor(now);              // UTC 02:30 之前读到的是旧数,不写进每日历史
+      if (dk) rec.days[dk] = { v: best.v, at: now };
       const keys = Object.keys(rec.days).sort();
       while (keys.length > 120) delete rec.days[keys.shift()];
       storage.set({ fl_reward: rec });

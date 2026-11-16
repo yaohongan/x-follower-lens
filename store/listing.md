@@ -22,7 +22,7 @@ X 不直接显示别人的粉丝数,也看不出一条推文到底火没火。�
 • 内容方向标签:按账号简介和刷到的推文,标出这个博主主要做什么(AI编程、智能体、AI视频、AI设计、出海变现、投资……),每个方向一种颜色,词典可自定义
 • 账号状态:鼠标放在徽标上,看这个账号有没有受保护、风险提示、认证类型等标记(只读页面自带数据)
 • 评论区标记:大 V 的回复高亮,低质量回复可选淡化
-• 原创奖励进度和粉丝达标预测:弹窗里看原创内容奖励累计曝光、还差多少、近 7 天变化和约几天达标(估算);粉丝涨到下一档约几天(只在你打开奖励页时读取页面数字,数据只存本地)
+• 原创奖励进度和粉丝达标预测:弹窗里看原创内容奖励累计曝光、还差多少、约几天达标(估算),以及每日整体曝光、蓝 V 曝光和计入奖励;粉丝涨到下一档约几天(只在你打开奖励页时读取页面数字,数据只存本地)
 • 新粉丝提醒:通知页里,每位新关注你的人旁边显示粉丝数和标签,大号高亮(只读页面里已有的通知数据)
 • 关注列表分析:在"正在关注"列表页按"没关注你""疑似互粉号""新号"等筛选、排序、导出 CSV(只统计你滚动加载过的,数据只存本地)
 • 推文复盘:个人主页上看这个账号你刷到过的推文——哪几条最好、什么时段发得最好(只用页面里已有的数据)
@@ -55,7 +55,7 @@ FEATURES
 • Topic tags: guesses what a creator mainly posts about from their bio and the posts you have seen (AI coding, agents, AI video, AI design, indie business, investing...), color-coded, with a custom dictionary
 • Account status: hover a badge to see flags the page already carries (protected, risk notice, verification type...)
 • Reply markers: highlight replies from big accounts, optionally dim low-quality ones
-• Reward progress and follower ETA: in the popup, see your Original Content Rewards cumulative impressions, how much is left, the last 7 days of net change and a rough days-to-goal estimate; plus how long until your next follower milestone (reads the number on the rewards page only when you open it; stored locally)
+• Reward progress and follower ETA: in the popup, see your Original Content Rewards cumulative impressions, how much is left, a rough days-to-goal estimate, and daily total / verified impressions and counted impressions; plus how long until your next follower milestone (reads the number on the rewards page only when you open it; stored locally)
 • New-follower highlights: on the Notifications page, each new follower shows follower count and tags; big accounts are highlighted (reads notification data already on the page)
 • Following-list analysis: filter/sort the accounts you follow by "does not follow you", "suspected follow-for-follow", "new account"... and export CSV (only what you scrolled into view; stored locally)
 • Post review: on a profile, see which of the posts you have seen did best and which time of day works best (uses page data only)

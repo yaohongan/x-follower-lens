@@ -519,7 +519,8 @@
     if (!rec || !(rec.v >= 0)) return null;
     const target = rec.target > 0 ? rec.target : 500000;
     const days = rec.days || {};
-    const lastDay = dayKey(rec.at || now);
+    const keys = Object.keys(days).sort();
+    const lastDay = keys.length ? keys[keys.length - 1] : dayKey(rec.at || now);   // 以最近一条每日记录为准(X 在 UTC 02:30 后才更新,读到的算「昨天」的累计)
     const bars = [];
     for (let i = 6; i >= 0; i--) {
       const d = dayKey(new Date(lastDay + "T00:00:00Z").getTime() - i * 86400e3);
@@ -532,6 +533,41 @@
     const etaDays = remain === 0 ? 0 : avg !== null && avg > 0 ? Math.ceil(remain / avg) : null;
     return { v: rec.v, target, pct: Math.min(100, rec.v / target * 100), remain, reached: rec.v >= target, bars, avg, n: diffs.length, etaDays, at: rec.at || 0, stale: now - (rec.at || 0) > 36 * 3600e3 };
   }
+  // X 每天 UTC 02:30(北京时间 10:30)后才更新奖励累计。这之后读到的数记为「昨天」的累计;之前读到的是旧数,不写进每日历史。返回应写入的日期,或 null
+  function rewardDayFor(at) {
+    const d = new Date(at);
+    if (d.getUTCHours() * 60 + d.getUTCMinutes() < 150) return null;
+    return dayKey(at - 86400e3);
+  }
+  // 账号分析页的「每日曝光」响应:current_time_series 里 engagement_type 为 Displayed 的就是曝光,is_engaging_user_verified 区分蓝 V;timestamp 是 UTC 日。
+  // 整体曝光 = 蓝 V + 非蓝 V。返回 { "YYYY-MM-DD": { t: 整体, v: 蓝V } },没有就返回 null
+  function parseOverviewDaily(json) {
+    const r = json && json.data && json.data.viewer_v2 && json.data.viewer_v2.user_results && json.data.viewer_v2.user_results.result;
+    const ts = r && r.current_time_series;
+    if (!Array.isArray(ts)) return null;
+    const days = {}; let n = 0;
+    for (const e of ts) {
+      if (!e || e.engagement_type !== "Displayed" || !(Number(e.count) >= 0) || !e.timestamp) continue;
+      const d = new Date(Number(e.timestamp)).toISOString().slice(0, 10);
+      const o = days[d] || (days[d] = { t: 0, v: 0 });
+      o.t += Number(e.count);
+      if (e.is_engaging_user_verified === true || e.is_engaging_user_verified === "true") o.v += Number(e.count);
+      n++;
+    }
+    return n ? days : null;
+  }
+  // 弹窗里的每日表:最近 7 个完整的 UTC 日(到昨天为止),每天 整体曝光 / 蓝 V 曝光 / 计入奖励(奖励累计的净变化)
+  function rewardDaily(rec, daily, now) {
+    const today = dayKey(now), t0 = new Date(today + "T00:00:00Z").getTime();
+    const dd = (daily && daily.days) || {}, rd = (rec && rec.days) || {};
+    const out = [];
+    for (let i = 7; i >= 1; i--) {
+      const d = dayKey(t0 - i * 86400e3), p = dayKey(t0 - (i + 1) * 86400e3);
+      out.push({ day: d, total: dd[d] ? dd[d].t : null, verified: dd[d] ? dd[d].v : null, counted: rd[d] && rd[p] ? rd[d].v - rd[p].v : null });
+    }
+    return out;
+  }
+
   // 粉丝达标预测:用本地记录的粉丝数变化,算近两周平均每天涨多少、到下一档还要几天
   const FOLLOW_LADDER = [500, 1000, 2000, 3000, 5000, 10000, 20000, 30000, 50000, 100000, 200000, 300000, 500000, 1000000, 2000000];
   function followerEta(arr, now) {
@@ -546,7 +582,7 @@
     return { cur: last[1], perDay, spanDays, next, etaDays: next && perDay > 0 ? Math.ceil((next - last[1]) / perDay) : null };
   }
 
-  const api = { parseCount, rewardSummary, followerEta, FOLLOW_LADDER, pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary, FOLLOW_FILTERS, FOLLOW_SORTS, followsSummary, tweetsSummary };
+  const api = { parseCount, rewardSummary, rewardDayFor, parseOverviewDaily, rewardDaily, followerEta, FOLLOW_LADDER, pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary, FOLLOW_FILTERS, FOLLOW_SORTS, followsSummary, tweetsSummary };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);

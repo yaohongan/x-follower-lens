@@ -33,9 +33,21 @@
   const fmtK = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e3 ? (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K" : String(Math.round(n));
   const fmtDays = (d) => d <= 0 ? "已达到" : d > 365 ? "超过一年" : d <= 1 ? "约 1 天" : `约 ${d} 天`;
   const dateAfter = (d) => { const t = new Date(Date.now() + d * 86400e3); return `${t.getMonth() + 1}月${t.getDate()}日`; };
+  function dailyTable(rows, daily, now) {
+    const has = rows.some((x) => x.total !== null || x.counted !== null);
+    const stale = !daily || !daily.at || now - daily.at > 3 * 86400e3;
+    const link = `<a class="ins-link" href="https://x.com/i/account_analytics" target="_blank" rel="noreferrer">去账号分析页更新每日曝光</a>`;
+    if (!has) return `<p class="ins-empty">每日整体曝光和蓝 V 曝光:打开一次「账号分析」页就会记下最近几十天。</p>${link}`;
+    const f = (n) => n === null ? "—" : fmtK(n);
+    const body = rows.slice().reverse().map((x) => {
+      const pct = x.total ? Math.round(x.verified / x.total * 100) + "%" : "";
+      return `<tr><td>${Number(x.day.slice(5, 7))}/${Number(x.day.slice(8))}</td><td>${f(x.total)}</td><td>${f(x.verified)}<em>${pct}</em></td><td>${x.counted === null ? "—" : (x.counted >= 0 ? "+" : "") + fmtK(x.counted)}</td></tr>`;
+    }).join("");
+    return `<table class="dtab"><thead><tr><th>日期</th><th>整体曝光</th><th>蓝 V 曝光</th><th>计入奖励</th></tr></thead><tbody>${body}</tbody></table>${stale ? link : ""}`;
+  }
   function renderInsight() {
     const box = document.getElementById("insight");
-    chrome.storage.local.get(["fl_reward", "fl_me", HIST_KEY], (r) => {
+    chrome.storage.local.get(["fl_reward", "fl_daily", "fl_me", HIST_KEY], (r) => {
       const now = Date.now();
       const rw = P.rewardSummary(r.fl_reward, now);
       let html = "";
@@ -58,7 +70,8 @@
 <div class="ins-row"><span>${sameDay ? "今天" : (when.getMonth() + 1) + "月" + when.getDate() + "日"} ${hh} 记录${rw.stale ? "(已过期)" : ""}</span><span>${rw.reached ? "已达标" : "还差 " + fmtK(rw.remain)}</span></div>
 <p class="ins-eta">${eta}</p>
 <div class="bars">${bars}</div><div class="lbs">${lbs}</div>
-<p class="ins-note">柱子是相邻两天累计数的差(净变化,含到期移出),不是当天新增。数据只在你打开奖励页时更新。</p>
+${dailyTable(P.rewardDaily(r.fl_reward, r.fl_daily, now), r.fl_daily, now)}
+<p class="ins-note">「计入奖励」是相邻两天累计数的差(净变化,含到期移出),不是当天新增。奖励累计在你打开奖励页时更新,每日曝光在你打开账号分析页时更新。</p>
 <a class="ins-link" href="https://x.com/i/jf/creators/original_content_rewards" target="_blank" rel="noreferrer">去更新</a></div>`;
       }
       const me = r.fl_me, hist = r[HIST_KEY] || {};

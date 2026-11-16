@@ -37,11 +37,16 @@
     window.postMessage({ source: SOURCE, dx: { url: String(url).replace(/\?.*$/, "").slice(0, 160), status, body: text.slice(0, 60000), at: Date.now() } }, "*");
   };
 
+  // 账号分析页的「每日曝光」查询:整体曝光、蓝 V 曝光都在里面。只认这一个接口,响应里有 current_time_series 才转发
+  const isAO = (url) => typeof url === "string" && /\/graphql\/[^/]+\/accountOverviewDailyQuery(?:\?|$)/.test(url);
+  const emitAO = (t) => { if (typeof t === "string" && t.includes("current_time_series") && t.length < 8e6) window.postMessage({ source: SOURCE, ao: t }, "*"); };
+
   const origFetch = window.fetch;
   window.fetch = function (...args) {
     const p = origFetch.apply(this, args);               // X 拿到的就是它自己的 Promise,不多等任何东西
     try {
       const url = typeof args[0] === "string" ? args[0] : args[0] && args[0].url;
+      if (isAO(url)) p.then((res) => { try { res.clone().text().then(emitAO).catch(() => {}); } catch (_) {} }, () => {});
       if (onDiagPage() && diagUrl(url)) p.then((res) => { try { res.clone().text().then((t) => emitDiag(t, url, res.status)).catch(() => {}); } catch (_) {} }, () => {});
       if (wanted(url)) p.then((res) => {
         try { res.clone().text().then((t) => emit(t, url)).catch(() => {}); } catch (_) {}
@@ -53,6 +58,7 @@
 
   const origOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (isAO(url)) this.addEventListener("load", () => { try { if (this.responseType === "" || this.responseType === "text") emitAO(this.responseText); } catch (_) {} });
     if (onDiagPage() && diagUrl(url)) this.addEventListener("load", () => { try { if (this.responseType === "" || this.responseType === "text") emitDiag(this.responseText, url, this.status); } catch (_) {} });
     if (wanted(url)) {
       this.addEventListener("load", () => {

@@ -81,3 +81,10 @@ textarea:focus { outline: none; border-color: var(--accent); }
 .bars .bar.neg { background: #f4212e; }
 .lbs { display: flex; gap: 6px; color: var(--muted); font-size: 10px; margin-top: 3px; }
 .lbs span { flex: 1; text-align: center; }
+
+.dtab { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+.dtab th { text-align: right; font-weight: 500; color: var(--muted); font-size: 11px; padding: 2px 0 4px; }
+.dtab th:first-child, .dtab td:first-child { text-align: left; }
+.dtab td { text-align: right; padding: 3px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.dtab td:first-child { color: var(--muted); }
+.dtab em { font-style: normal; color: var(--muted); font-size: 10.5px; margin-left: 4px; }
