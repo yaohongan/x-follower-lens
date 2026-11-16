@@ -4,7 +4,7 @@
   const DOM_KEY = "fl_dom";
   const DEFAULTS = {
     enabled: true, showRatio: false, tierColors: true, hoverCard: true,
-    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, replyMark: true, replyDim: false, fansBar: true, rewardCard: true, fansAuto: false, fansBtn: true, followsAuto: false, followsBar: true, reviewBtn: true, flowSize: "m", notifyMark: true, notifyLine: 10000, fansLines: "3000,10000,30000,50000,100000", cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
+    trackHistory: true, dimLowQuality: true, flow: true, flowFx: true, replyMark: true, replyDim: false, fansBar: true, rewardCard: true, rewardAuto: false, fansAuto: false, fansBtn: true, followsAuto: false, followsBar: true, reviewBtn: true, flowSize: "m", notifyMark: true, notifyLine: 10000, fansLines: "3000,10000,30000,50000,100000", cardBtn: true, avatarFx: true, avatarSpin: false, flowPos: "corner", hideForeign: true, layout: "below", maxTags: 3, debug: false,
     customDomains: "",
     tags: { domain: true, relation: true, bigV: true, farm: true, newAcct: true, oldAcct: true, engaged: true, lowActive: true },
   };
@@ -52,7 +52,7 @@
       const rw = P.rewardSummary(r.fl_reward, now);
       let html = "";
       if (!rw) {
-        html += `<div class="ins"><div class="ins-h"><b>原创奖励进度</b></div><p class="ins-empty">还没有数据。打开一次「原创内容奖励」页面,插件会把累计曝光记下来(只存在你的浏览器里)。</p><a class="ins-link" href="https://x.com/i/jf/creators/original_content_rewards" target="_blank" rel="noreferrer">去原创内容奖励页</a></div>`;
+        html += `<div class="ins"><div class="ins-h"><b>原创奖励进度</b></div><p class="ins-empty">还没有数据。打开一次「原创内容奖励」页面,插件会把累计曝光记下来(只存在你的浏览器里)。想省掉这一步,在下面的设置里打开「每天自动更新」。</p><a class="ins-link" href="https://x.com/i/jf/creators/original_content_rewards" target="_blank" rel="noreferrer">去原创内容奖励页</a></div>`;
       } else {
         const when = new Date(rw.at); const hh = String(when.getHours()).padStart(2, "0") + ":" + String(when.getMinutes()).padStart(2, "0");
         const sameDay = new Date().toDateString() === when.toDateString();

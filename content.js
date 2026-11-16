@@ -197,7 +197,7 @@
       rec.at = Date.now();
       const keys = Object.keys(rec.days).sort();
       while (keys.length > 120) delete rec.days[keys.shift()];
-      storage.set({ fl_daily: rec });
+      storage.set({ fl_daily: rec }, () => tellDone("daily"));
     }).catch(() => {});
   }
   let rewardLast = { v: -1, at: 0 }, meLast = "";
@@ -236,10 +236,32 @@
       if (dk) rec.days[dk] = { v: best.v, at: now };
       const keys = Object.keys(rec.days).sort();
       while (keys.length > 120) delete rec.days[keys.shift()];
-      storage.set({ fl_reward: rec });
+      storage.set({ fl_reward: rec }, () => tellDone("reward"));
     }).catch(() => {});
   }
   setInterval(captureReward, 3000);
+
+  // 每天自动更新:今天该有的数据还没记,就请后台脚本去悄悄开页面(最多每 5 分钟问一次,真正的次数限制在后台)
+  const AUTO_TAB = /[?&]fl_auto=1/.test(location.search);
+  let autoAsk = 0;
+  function maybeAutoFetch() {
+    if (!settings || !settings.enabled || !settings.rewardCard || settings.rewardAuto !== true || !storage || AUTO_TAB) return;
+    if (document.visibilityState !== "visible" || /^\/i\/(?:jf\/creators|account_analytics)/.test(location.pathname)) return;
+    if (Date.now() - autoAsk < 5 * 60e3) return;
+    autoAsk = Date.now();
+    storage.get(["fl_reward", "fl_daily"]).then((o) => {
+      const now = Date.now();
+      const expect = new Date(now - 2.5 * 3600e3 - 86400e3).toISOString().slice(0, 10);   // 此刻应该已经有的最新一天(UTC 02:30 前是前天,之后是昨天)
+      const rw = o.fl_reward, dl = o.fl_daily;
+      const need = [];
+      if (!rw || !rw.days || (!rw.days[expect] && P.rewardDayFor(now) !== null)) need.push("reward");
+      if (!dl || !dl.days || !dl.days[expect]) need.push("daily");
+      if (need.length) { try { chrome.runtime.sendMessage({ type: "fl-auto", need }); } catch (_) {} }
+    }).catch(() => {});
+  }
+  setInterval(maybeAutoFetch, 20000);
+  setTimeout(maybeAutoFetch, 4000);
+  const tellDone = (kind) => { try { chrome.runtime.sendMessage({ type: "fl-captured", kind }); } catch (_) {} };
 
   function handleMessage(body, op) {
     const t0 = performance.now();
