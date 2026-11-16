@@ -28,11 +28,21 @@
     } catch (_) {}
   };
 
+  // 实验:只在「原创内容奖励」页和「账号分析」页上,把和曝光/奖励有关的响应原样发给内容脚本,存在本地,供排查(这两页用的是 X 的另一套接口)
+  const onDiagPage = () => /^\/i\/(?:jf\/creators|account_analytics)/.test(location.pathname);
+  const diagUrl = (url) => typeof url === "string" && (url.includes("/i/api/") || url.includes("api.x.com/")) && !/\.(?:png|jpe?g|gif|webp|css|js)(?:\?|$)/.test(url);
+  const emitDiag = (text, url, status) => {
+    if (typeof text !== "string" || text.length < 80 || text.length > 4e6) return;
+    if (!/impression|reward|creator|monetiz|eligib|verified_home|analytics|revenue/i.test(text)) return;
+    window.postMessage({ source: SOURCE, dx: { url: String(url).replace(/\?.*$/, "").slice(0, 160), status, body: text.slice(0, 60000), at: Date.now() } }, "*");
+  };
+
   const origFetch = window.fetch;
   window.fetch = function (...args) {
     const p = origFetch.apply(this, args);               // X 拿到的就是它自己的 Promise,不多等任何东西
     try {
       const url = typeof args[0] === "string" ? args[0] : args[0] && args[0].url;
+      if (onDiagPage() && diagUrl(url)) p.then((res) => { try { res.clone().text().then((t) => emitDiag(t, url, res.status)).catch(() => {}); } catch (_) {} }, () => {});
       if (wanted(url)) p.then((res) => {
         try { res.clone().text().then((t) => emit(t, url)).catch(() => {}); } catch (_) {}
         if (isListOp(url)) emitRl(url, res.status, (k) => res.headers.get(k));
@@ -43,6 +53,7 @@
 
   const origOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (onDiagPage() && diagUrl(url)) this.addEventListener("load", () => { try { if (this.responseType === "" || this.responseType === "text") emitDiag(this.responseText, url, this.status); } catch (_) {} });
     if (wanted(url)) {
       this.addEventListener("load", () => {
         try { emit(this.responseText, url); } catch (_) {}

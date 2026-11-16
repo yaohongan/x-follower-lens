@@ -165,9 +165,62 @@
     if (e.source !== window || !e.data || e.data.source !== "follower-lens") return;
     msgCount++;
     if (e.data.rl) { noteRate(e.data.rl); return; }
+    if (e.data.dx) { noteDx(e.data.dx); return; }
     if (!settings) { pending.push({ body: e.data.body, op: e.data.op }); return; }
     enqueue(e.data.body, e.data.op);
   });
+
+  // ---------- 原创内容奖励:进度记录 + 原始响应(实验) ----------
+  // 奖励页上只有一个累计数(过去 90 天已验证首页曝光)。每次你打开那个页面,插件把它记下来(按天一条,只存本地),弹窗里用它画进度。
+  // 另外在「奖励页」和「账号分析页」上,把和曝光有关的响应原样存下最近 10 条(隐去令牌),用来研究每日明细从哪里取;弹窗里「复制奖励页诊断」可以拿出来。
+  const REDACT = /"([^"]*(?:token|csrf|auth|cookie|secret|password)[^"]*)"\s*:\s*"[^"]*"/gi;
+  function noteDx(dx) {
+    if (!settings || !settings.enabled || !settings.rewardCard || !storage || !dx || typeof dx.body !== "string") return;
+    const body = dx.body.replace(REDACT, '"$1":"[已隐去]"');
+    storage.get("fl_flowdiag").then((o) => {
+      const arr = (o.fl_flowdiag || []).filter((x) => !(x.url === dx.url && x.len === dx.body.length));
+      arr.push({ url: dx.url, status: dx.status, at: dx.at, page: location.pathname, len: dx.body.length, body });
+      while (arr.length > 10 || arr.reduce((s, x) => s + x.body.length, 0) > 500000) arr.shift();
+      storage.set({ fl_flowdiag: arr });
+    }).catch(() => {});
+  }
+  let rewardLast = { v: -1, at: 0 }, meLast = "";
+  function captureReward() {
+    if (!settings || !settings.enabled || !settings.rewardCard || !storage) return;
+    const meLink = document.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+    const mm = meLink ? /^\/([A-Za-z0-9_]{1,15})$/.exec(meLink.getAttribute("href") || "") : null;
+    if (mm && mm[1] !== meLast) { meLast = mm[1]; storage.set({ fl_me: meLast }); }
+    if (!/^\/i\/jf\/creators\/original_content_rewards/.test(location.pathname)) return;
+    const main = document.querySelector('[data-testid="primaryColumn"]') || document.querySelector("main");
+    if (!main) return;
+    let best = null;
+    for (const el of main.querySelectorAll("div,span")) {          // 页面上最大的那个数字就是累计曝光(例如 373.1K)
+      if (el.children.length) continue;
+      const tx = (el.textContent || "").trim();
+      if (tx.length > 9 || !/\d/.test(tx)) continue;
+      const v = P.parseCount(tx);
+      if (v === null) continue;
+      const fs = parseFloat(getComputedStyle(el).fontSize) || 0;
+      if (fs >= 20 && (!best || fs > best.fs)) best = { v, fs };
+    }
+    if (!best) return;
+    const now = Date.now();
+    if (best.v === rewardLast.v && now - rewardLast.at < 30 * 60e3) return;
+    rewardLast = { v: best.v, at: now };
+    let target = 500000;
+    const tm = /(\d[\d,]*)\s*万\s*次/.exec(main.innerText || "");
+    if (tm) { const t = Number(tm[1].replace(/,/g, "")) * 1e4; if (t >= 100000 && t <= 1e8) target = t; }
+    storage.get("fl_reward").then((o) => {
+      const rec = o.fl_reward || { days: {} };
+      rec.v = best.v; rec.at = now; rec.target = target;
+      rec.days = rec.days || {};
+      rec.days[new Date(now).toISOString().slice(0, 10)] = { v: best.v, at: now };
+      const keys = Object.keys(rec.days).sort();
+      while (keys.length > 120) delete rec.days[keys.shift()];
+      storage.set({ fl_reward: rec });
+    }).catch(() => {});
+  }
+  setInterval(captureReward, 3000);
 
   function handleMessage(body, op) {
     const t0 = performance.now();

@@ -59,3 +59,25 @@ textarea { width: 100%; resize: vertical; font: 12.5px/1.5 ui-monospace, Menlo, 
 textarea:focus { outline: none; border-color: var(--accent); }
 
 #copyDiag, #clearHist { white-space: nowrap; flex: none; }
+
+#copyFlow { white-space: nowrap; }
+.ins { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.ins-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.ins-h b { font-size: 13px; font-weight: 600; }
+.pill { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; background: rgba(29,155,240,.14); color: var(--accent); }
+.ins-big { font-size: 26px; font-weight: 600; letter-spacing: -.5px; line-height: 1.2; }
+.ins-big small { font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.pbar { height: 8px; border-radius: 5px; background: var(--off); overflow: hidden; margin: 8px 0 5px; }
+.pbar i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+.ins-row { display: flex; justify-content: space-between; color: var(--muted); font-size: 11.5px; }
+.ins-eta { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; background: rgba(0,186,124,.12); color: #0a8f63; font-size: 12px; }
+@media (prefers-color-scheme: dark) { .ins-eta { color: #3dd9a4; } }
+.ins-empty { margin: 6px 0; color: var(--muted); font-size: 12px; }
+.ins-note { margin: 8px 0 4px; color: var(--muted); font-size: 11px; }
+.ins-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 48px; margin-top: 10px; }
+.bars .bar { flex: 1; border-radius: 3px 3px 0 0; background: var(--accent); min-height: 3px; }
+.bars .bar.na { background: var(--off); }
+.bars .bar.neg { background: #f4212e; }
+.lbs { display: flex; gap: 6px; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.lbs span { flex: 1; text-align: center; }

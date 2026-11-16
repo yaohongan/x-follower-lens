@@ -16,6 +16,11 @@
   </header>
 
   <main id="panel">
+    <section id="insight-sec">
+      <h2>数据洞察</h2>
+      <div id="insight"></div>
+    </section>
+
     <section>
       <h2>显示</h2>
       <label class="row"><span>粉丝量分级配色<small>按粉丝数给徽标上不同颜色</small></span><span class="sw"><input type="checkbox" data-key="tierColors"><i></i></span></label>
@@ -113,6 +118,8 @@
       <label class="row"><span>新粉丝提醒<small>通知页里,每位新关注你的人旁边显示粉丝数和标签;粉丝数达到提醒线的,整条通知高亮并标 ⭐</small></span><span class="sw"><input type="checkbox" data-key="notifyMark"><i></i></span></label>
       <div class="row nohover"><span>大号提醒线(粉丝数)<small>默认 10000,支持写"3万"</small></span></div>
       <input id="notifyLine" type="text" spellcheck="false" style="width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 9px;border:1px solid var(--line, #d0d7de);border-radius:8px;font:13px system-ui;background:transparent;color:inherit">
+      <label class="row"><span>记录原创奖励进度<small>只在你打开「原创内容奖励」页时,把页面上的累计曝光记在本机,弹窗里显示进度和预计几天达标。同时在奖励页、账号分析页上本地存几条原始响应,供排查(隐去令牌,不上传)</small></span><span class="sw"><input type="checkbox" data-key="rewardCard"><i></i></span></label>
+      <div class="row nohover"><span>奖励页诊断<small>开发者要研究每日数据时,点这里复制后发过来</small></span><button id="copyFlow" type="button">复制奖励页诊断</button></div>
       <label class="row"><span>推文复盘按钮<small>个人主页上的小图表图标:这个账号你刷到过的推文哪几条最好、什么时段发得最好</small></span><span class="sw"><input type="checkbox" data-key="reviewBtn"><i></i></span></label>
       <div class="row nohover"><span>粉丝构成分档线<small>按粉丝数分档,用逗号隔开,支持"万":3000,10000,3万,5万,10万</small></span></div>
       <input id="fansLines" type="text" spellcheck="false" style="width:100%;box-sizing:border-box;margin:2px 0 6px;padding:7px 9px;border:1px solid var(--line, #d0d7de);border-radius:8px;font:13px system-ui;background:transparent;color:inherit">
@@ -129,6 +136,7 @@
     <a href="https://github.com/yaohongan/x-follower-lens" target="_blank" rel="noreferrer">GitHub</a>
     <span>修改即时生效</span>
   </footer>
+  <script src="parse.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

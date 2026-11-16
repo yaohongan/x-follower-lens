@@ -15,6 +15,7 @@
     cardBtn: true,        // 个人主页上显示「生成名片」按钮
     replyMark: true,      // 评论区:大 V 回复高亮
     replyDim: false,      // 评论区:疑似互粉号/低活跃号的回复淡化(默认关)
+    rewardCard: true,     // 记录「原创内容奖励」页上的进度数字(只在你自己打开那个页面时读),弹窗里显示进度、还差多少、预计几天;并在奖励页/账号分析页本地记录原始响应供排查
     fansBar: true,        // 粉丝列表页顶部显示"已统计 N 位粉丝 / 查看粉丝构成"
     fansLines: "3000,10000,30000,50000,100000",   // 粉丝构成分档线(粉丝数)
     replyMark: true,      // 评论区:大 V 的回复高亮
@@ -502,7 +503,50 @@
     return r >= 10000 ? (r / 1000).toFixed(0) + "k" : r >= 1000 ? (r / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(Math.round(r));
   }
 
-  const api = { pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary, FOLLOW_FILTERS, FOLLOW_SORTS, followsSummary, tweetsSummary };
+  // ---- 原创内容奖励进度 ----
+  // 页面上写的是「373.1K」这样的缩写(精度到 100)。K/M/万 都认。
+  function parseCount(s) {
+    const m = /^\s*([\d][\d,]*(?:\.\d+)?)\s*([KkMm万wW])?\s*$/.exec(String(s || ""));
+    if (!m) return null;
+    const n = parseFloat(m[1].replace(/,/g, ""));
+    const u = (m[2] || "").toLowerCase();
+    const v = u === "k" ? n * 1e3 : u === "m" ? n * 1e6 : (u === "万" || u === "w") ? n * 1e4 : n;
+    return isFinite(v) ? Math.round(v) : null;
+  }
+  const dayKey = (ms) => new Date(ms).toISOString().slice(0, 10);   // 和 X 的统计日一样按 UTC 划分
+  // rec: { target, v, at, days: { "YYYY-MM-DD": { v, at } } }。累计数是「过去 90 天」滚动的,相邻两天的差 = 净变化(含到期移出),不是当天新增
+  function rewardSummary(rec, now) {
+    if (!rec || !(rec.v >= 0)) return null;
+    const target = rec.target > 0 ? rec.target : 500000;
+    const days = rec.days || {};
+    const lastDay = dayKey(rec.at || now);
+    const bars = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = dayKey(new Date(lastDay + "T00:00:00Z").getTime() - i * 86400e3);
+      const p = dayKey(new Date(lastDay + "T00:00:00Z").getTime() - (i + 1) * 86400e3);
+      bars.push({ day: d, diff: days[d] && days[p] ? days[d].v - days[p].v : null });
+    }
+    const diffs = bars.filter((b) => b.diff !== null).map((b) => b.diff);
+    const avg = diffs.length >= 3 ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;
+    const remain = Math.max(0, target - rec.v);
+    const etaDays = remain === 0 ? 0 : avg !== null && avg > 0 ? Math.ceil(remain / avg) : null;
+    return { v: rec.v, target, pct: Math.min(100, rec.v / target * 100), remain, reached: rec.v >= target, bars, avg, n: diffs.length, etaDays, at: rec.at || 0, stale: now - (rec.at || 0) > 36 * 3600e3 };
+  }
+  // 粉丝达标预测:用本地记录的粉丝数变化,算近两周平均每天涨多少、到下一档还要几天
+  const FOLLOW_LADDER = [500, 1000, 2000, 3000, 5000, 10000, 20000, 30000, 50000, 100000, 200000, 300000, 500000, 1000000, 2000000];
+  function followerEta(arr, now) {
+    if (!arr || arr.length < 2) return null;
+    const last = arr[arr.length - 1];
+    let base = null;
+    for (const p of arr) { if (now - p[0] <= 14 * 86400e3 && last[0] - p[0] >= 20 * 3600e3) { base = p; break; } }
+    if (!base) return null;
+    const spanDays = (last[0] - base[0]) / 86400e3;
+    const perDay = (last[1] - base[1]) / spanDays;
+    const next = FOLLOW_LADDER.find((x) => x > last[1]) || null;
+    return { cur: last[1], perDay, spanDays, next, etaDays: next && perDay > 0 ? Math.ceil((next - last[1]) / perDay) : null };
+  }
+
+  const api = { parseCount, rewardSummary, followerEta, FOLLOW_LADDER, pickDomains, tweetDomains, parseCustomDomains, DOMAINS, FLOW_TIERS, flowOf, trendOf, fmtRate, DEFAULTS, mergeSettings, extract, tags, tier, fmt, fmtRatio, ratioOf, engagementOf, shouldDim, deltaFrom, qualityScore, fmtPace, usualViews, statusOf, parseFansLines, fansBandNames, fansSummary, FOLLOW_FILTERS, FOLLOW_SORTS, followsSummary, tweetsSummary };
   if (typeof module !== "undefined") module.exports = api;
   else root.FollowerLensParse = api;
 })(typeof window !== "undefined" ? window : globalThis);
