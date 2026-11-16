@@ -439,6 +439,7 @@
   const FLOW_MIN_AGE_H = 1 / 60;           // 发布不足 1 分钟:太早,不算
   const FLOW_FRESH_MIN_H = 0.25;           // 15 分钟内算"刚发布":浏览量还少,数字不稳,低档位(龟速)会误导,不显示
   const FLOW_MIN_VIEWS = 1;                // 至少 1 次浏览(0 次没有速度可言)。不再设"样本太小不算"的门槛,和别的流速插件一样都显示
+  const FLOW_MIN_V = [0, 0, 10, 50, 200];  // 每一档至少要有这么多次浏览才给:样本太少,速度是推出来的,不能把刚发几分钟、几十次浏览的推文标成 沸腾/喷发
   const FLOW_FRESH_H = 24;                 // 24 小时内:"实时流速",带趋势箭头
   const FLOW_MAX_AGE_H = 720;              // 超过 30 天不算。24 小时~30 天之间是"发布以来的平均速度"(old: true)
 
@@ -453,6 +454,7 @@
     const lines = rel ? FLOW_REL : FLOW_ABS;
     let idx = 0;
     while (idx < lines.length && value >= lines[idx]) idx++;
+    while (idx > 0 && t.views < FLOW_MIN_V[idx]) idx--;
     return { rate, ageH, tier: idx, old: ageH > FLOW_FRESH_H, fresh: ageH < FLOW_FRESH_MIN_H, ...FLOW_TIERS[idx] };
   }
 

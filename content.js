@@ -493,10 +493,12 @@
 
   // ----- 推文流速:放在底部操作栏"浏览量"那一格的空位里,不占挤满的头部 -----
   function tweetIdOf(article) {
-    for (const a of article.querySelectorAll('a[href*="/status/"]')) {
-      const m = a.getAttribute("href").match(/\/status\/(\d+)/);
-      if (m && tweetInfo.has(m[1])) return m[1];
-    }
+    // 推文自己的编号:优先取"发布时间"那条链接(里面有 <time>)。引用推文卡片里也有 /status/ 链接,而且在详情页上排在时间链接前面,
+    // 取到它就会拿被引用那条推文的浏览量和时间来算,10 次浏览的推文被标成"喷发"。所以引用卡片里的链接一律跳过。
+    const inQuote = (a) => !!a.closest('[data-testid="quoteTweet"]');
+    const idOf = (a) => { const m = a.getAttribute("href").match(/\/status\/(\d+)/); return m && tweetInfo.has(m[1]) ? m[1] : null; };
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) { if (inQuote(a) || !a.querySelector("time")) continue; const id = idOf(a); if (id) return id; }
+    for (const a of article.querySelectorAll('a[href*="/status/"]')) { if (inQuote(a)) continue; const id = idOf(a); if (id) return id; }
     return null;
   }
 
